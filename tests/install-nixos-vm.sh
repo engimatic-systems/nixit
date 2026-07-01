@@ -90,6 +90,24 @@ printf "# generated\n" > "$root/etc/nixos/hardware-configuration.nix"
   write_fake nixos-install 'printf "nixos-install %s\n" "$*" >> "$FAKE_LOG"'
 }
 
+write_retry_mount_fake() {
+  write_fake mount '
+attempt_file=$FAKE_ROOT/mount-attempts
+attempt=0
+if [[ -f "$attempt_file" ]]; then
+  attempt=$(< "$attempt_file")
+fi
+attempt=$((attempt + 1))
+printf "%s\n" "$attempt" > "$attempt_file"
+printf "mount-attempt-%s %s\n" "$attempt" "$*" >> "$FAKE_LOG"
+if (( attempt == 1 )); then
+  printf "fake transient mount failure\n" >&2
+  exit 32
+fi
+mkdir -p "$2"
+'
+}
+
 run_helper_expect_failure() {
   local output=$1
   shift
@@ -109,6 +127,7 @@ run_helper() {
   env \
     PATH="$tmp_root/bin:$PATH" \
     FAKE_LOG="$tmp_root/log" \
+    FAKE_ROOT="$tmp_root" \
     NIXBOXES_INSTALL_ROOT="$tmp_root/mnt" \
     "$@" \
     "$script" > "$tmp_root/output" 2>&1
@@ -193,9 +212,28 @@ test_generates_missing_hardware_configuration() {
   tmp_root=
 }
 
+test_retries_transient_mount_failure() {
+  new_case
+  write_common_fakes
+  write_retry_mount_fake
+  printf '{ ... }: {}\n' > "$tmp_root/config/configuration.nix"
+
+  run_helper \
+    DISK="$tmp_root/dev/vda" \
+    CONFIGURATION_NIX="$tmp_root/config/configuration.nix"
+
+  assert_contains "$tmp_root/log" "mount-attempt-1 $tmp_root/dev/vda2 $tmp_root/mnt"
+  assert_contains "$tmp_root/log" "mount-attempt-2 $tmp_root/dev/vda2 $tmp_root/mnt"
+  assert_contains "$tmp_root/log" "nixos-install --root $tmp_root/mnt"
+
+  cleanup
+  tmp_root=
+}
+
 test_missing_disk_fails_before_mutation
 test_missing_configuration_fails_before_mutation
 test_preserves_supplied_hardware_configuration
 test_generates_missing_hardware_configuration
+test_retries_transient_mount_failure
 
 printf 'install-nixos-vm tests passed\n'

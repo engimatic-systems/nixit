@@ -103,7 +103,7 @@ to explain the smoke.
 Inside the live system:
 
 #+begin_src sh
-find /etc/nixos-installer/configs -maxdepth 3 -type f -print | sort
+find /etc/nixos-installer/configs/ -maxdepth 3 -type f -print | sort
 test -r /etc/nixos-installer/configs/minimal/configuration.nix
 command -v install-nixos-vm
 #+end_src

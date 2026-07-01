@@ -75,6 +75,23 @@ wait_for_device() {
   die "partition device did not appear: $device"
 }
 
+mount_with_retry() {
+  local device=$1
+  local target=$2
+  local tries=$part_wait_tries
+
+  while (( tries > 0 )); do
+    if mount "$device" "$target"; then
+      return 0
+    fi
+
+    sleep "$part_wait_seconds"
+    tries=$((tries - 1))
+  done
+
+  die "failed to mount $device at $target"
+}
+
 require_inputs
 
 config_parent=$(dirname -- "$CONFIGURATION_NIX")
@@ -101,7 +118,7 @@ wait_for_device "$root_part"
 
 mkfs.ext4 -F -L nixos "$root_part"
 mkdir -p "$mount_root"
-mount "$root_part" "$mount_root"
+mount_with_retry "$root_part" "$mount_root"
 
 mkdir -p "$target_config_dir"
 rm -rf -- "$target_config_dir"
