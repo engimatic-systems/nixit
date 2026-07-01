@@ -10,8 +10,8 @@ runtime lifecycle.
 
 * Current Status
 
-Initial repository skeleton. Functional build commands land in later PR train
-cars tracked from =sys= ticket =rni-lbjt=.
+Initial repository skeleton with host preflight. ISO build commands land in
+later PR train cars tracked from =sys= ticket =rni-lbjt=.
 
 * Contract
 
@@ -26,13 +26,47 @@ The ISO contract is specified in =spec.org=.
 spec.org                 product contract
 README.org               operator orientation
 AGENTS.md                local agent instructions
-bin/                     host-side commands
+bin/preflight            host readiness check
 docs/                    operator documentation
 examples/                example installer config trees
 hosts/live-installer/    live ISO NixOS configuration
 #+end_example
 
 Generated ISOs, checksums, Nix result links, and scratch output are not tracked.
+
+* Preflight
+
+Run:
+
+#+begin_src sh
+bin/preflight
+#+end_src
+
+Preflight checks:
+
+- host OS is Linux
+- host architecture is =x86_64=
+- =nix-build= is available
+- current directory and Nix store filesystems have rough free space
+- selected =NIXPKGS_PATH= has a supported shape and resolves through Nix
+
+Default Nixpkgs source:
+
+#+begin_src sh
+NIXPKGS_PATH=channel:nixos-26.05
+#+end_src
+
+Override examples:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/preflight
+NIXPKGS_PATH=channel:nixos-unstable bin/preflight
+MIN_FREE_GIB=16 bin/preflight
+#+end_src
+
+Preflight does not install Nix, create VMs, build an ISO, or mutate host package
+state. Nix may still resolve the selected Nixpkgs source using its ordinary
+store/cache behavior.
 
 * Non-Goals
 

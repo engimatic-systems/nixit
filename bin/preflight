@@ -1,0 +1,157 @@
+#!/usr/bin/env bash
+set -u
+set -o pipefail
+
+DEFAULT_NIXPKGS_PATH="channel:nixos-26.05"
+MIN_FREE_GIB="${MIN_FREE_GIB:-8}"
+NIXPKGS_PATH="${NIXPKGS_PATH:-$DEFAULT_NIXPKGS_PATH}"
+
+errors=0
+
+usage() {
+  cat <<'EOF'
+Usage: bin/preflight
+
+Checks whether this host is likely ready to build a nixboxes installer ISO.
+
+Inputs:
+  NIXPKGS_PATH   Nixpkgs source. Default: channel:nixos-26.05
+  MIN_FREE_GIB   Rough free-space threshold. Default: 8
+
+Preflight does not install Nix, create VMs, or mutate host package state.
+EOF
+}
+
+fail() {
+  errors=$((errors + 1))
+  printf 'FAIL: %s\n' "$*" >&2
+}
+
+pass() {
+  printf 'PASS: %s\n' "$*"
+}
+
+info() {
+  printf 'INFO: %s\n' "$*"
+}
+
+free_gib_for() {
+  local path=$1
+  df -Pk "$path" 2>/dev/null | awk 'NR == 2 { printf "%d", $4 / 1024 / 1024 }'
+}
+
+check_free_space() {
+  local label=$1
+  local path=$2
+  local free_gib
+
+  free_gib=$(free_gib_for "$path")
+  if [[ -z "$free_gib" ]]; then
+    fail "could not inspect free space for $label at $path"
+    return
+  fi
+
+  if (( free_gib < MIN_FREE_GIB )); then
+    fail "$label has ${free_gib}GiB free; expected at least ${MIN_FREE_GIB}GiB"
+    return
+  fi
+
+  pass "$label has ${free_gib}GiB free"
+}
+
+check_nixpkgs_shape() {
+  case "$NIXPKGS_PATH" in
+    channel:*)
+      if [[ "$NIXPKGS_PATH" == "channel:" ]]; then
+        fail "NIXPKGS_PATH channel source is empty"
+        return
+      fi
+      pass "NIXPKGS_PATH uses channel source: $NIXPKGS_PATH"
+      ;;
+    /*|./*|../*)
+      if [[ ! -e "$NIXPKGS_PATH" ]]; then
+        fail "NIXPKGS_PATH filesystem source does not exist: $NIXPKGS_PATH"
+        return
+      fi
+      pass "NIXPKGS_PATH filesystem source exists: $NIXPKGS_PATH"
+      ;;
+    *)
+      fail "NIXPKGS_PATH must be channel:<name> or a filesystem path: $NIXPKGS_PATH"
+      return
+      ;;
+  esac
+
+  if ! command -v nix-instantiate >/dev/null 2>&1; then
+    fail "nix-instantiate was not found; Nix tooling appears incomplete"
+    return
+  fi
+
+  if NIX_PATH= nix-instantiate --find-file nixpkgs -I "nixpkgs=$NIXPKGS_PATH" >/dev/null 2>&1; then
+    pass "selected Nixpkgs source resolves"
+  else
+    fail "selected Nixpkgs source did not resolve: $NIXPKGS_PATH"
+  fi
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if (( $# > 0 )); then
+  usage >&2
+  exit 2
+fi
+
+host_os="${NIXBOXES_PREFLIGHT_UNAME_S:-$(uname -s)}"
+host_arch="${NIXBOXES_PREFLIGHT_UNAME_M:-$(uname -m)}"
+
+if [[ "$host_os" == "Linux" ]]; then
+  pass "host OS is Linux"
+else
+  fail "host OS must be Linux; found $host_os"
+fi
+
+case "$host_arch" in
+  x86_64)
+    pass "host architecture is x86_64-linux"
+    ;;
+  *)
+    fail "host architecture must be x86_64-linux; found ${host_arch}-linux"
+    ;;
+esac
+
+if command -v nix-build >/dev/null 2>&1; then
+  pass "nix-build found: $(command -v nix-build)"
+else
+  fail "nix-build was not found.
+
+Install Nix for this host, then rerun preflight.
+Examples:
+  Arch:   sudo pacman -S nix
+  Debian/Ubuntu: use your distro package or the upstream Nix installer"
+fi
+
+if [[ "$MIN_FREE_GIB" =~ ^[0-9]+$ ]]; then
+  check_free_space "current directory filesystem" "."
+
+  if [[ -e /nix/store ]]; then
+    check_free_space "Nix store filesystem" "/nix/store"
+  elif [[ -e /nix ]]; then
+    check_free_space "Nix filesystem" "/nix"
+  else
+    check_free_space "root filesystem" "/"
+  fi
+else
+  fail "MIN_FREE_GIB must be an integer; found $MIN_FREE_GIB"
+fi
+
+info "NIXPKGS_PATH=$NIXPKGS_PATH"
+check_nixpkgs_shape
+
+if (( errors > 0 )); then
+  printf '\npreflight failed with %d issue(s)\n' "$errors" >&2
+  exit 1
+fi
+
+printf '\npreflight passed\n'
