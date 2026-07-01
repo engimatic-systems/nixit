@@ -10,9 +10,9 @@ runtime lifecycle.
 
 * Current Status
 
-Initial repository skeleton with host preflight and SSH-ready live ISO build.
-Installer config embedding and install helper behavior land in later PR train
-cars tracked from =sys= ticket =rni-lbjt=.
+Initial repository skeleton with host preflight, SSH-ready live ISO build, and
+installer config embedding. Install helper behavior lands in later PR train cars
+tracked from =sys= ticket =rni-lbjt=.
 
 * Contract
 
@@ -98,6 +98,27 @@ Override the Nixpkgs source:
 NIXPKGS_PATH=/path/to/nixpkgs bin/build-live-installer-iso
 NIXPKGS_PATH=channel:nixos-unstable bin/build-live-installer-iso
 #+end_src
+
+Embed installer configs:
+
+#+begin_src sh
+bin/build-live-installer-iso
+CONFIG_DIR=./my-configs bin/build-live-installer-iso
+#+end_src
+
+When =CONFIG_DIR= is unset, the repo default =examples/minimal/= tree is
+available in the ISO at =/etc/nixos-installer/configs/minimal/=. When
+=CONFIG_DIR= is set, its contents are raw-copied into
+=/etc/nixos-installer/configs/= and the default =minimal= tree is not included
+unless the caller supplied it.
+
+Caller configs are bring-your-own NixOS configuration trees. The build does not
+template, rewrite, validate, or interpret them beyond ordinary Nix build
+failures, and operators use them at their own risk.
+
+The default =minimal= tree is for smoke testing and day-1 bootstrap. It assumes
+a target VM disk at =/dev/vda= for GRUB; real installs should bring an explicit
+operator-owned config.
 
 Pass =nix-build= flags after the optional destination:
 

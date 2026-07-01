@@ -2,6 +2,7 @@
 
 let
   nixosPasswordHash = "$6$syslive01$0wi4jkHHnvt8vKxMWfyywbXm4yp6uz1EvN.48GldIWhOYGHQDNUxwtB3ql3YTq3FDDc72Q130Nj47VSKNh./5/";
+  installerConfigs = <nixboxes-installer-configs>;
 in
 {
   imports = [
@@ -43,6 +44,8 @@ in
     openssh
     vim
   ];
+
+  environment.etc."nixos-installer/configs".source = installerConfigs;
 
   system.stateVersion = "26.05";
 }

@@ -5,6 +5,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 default_nixpkgs_path="channel:nixos-26.05"
 nixpkgs_path=${NIXPKGS_PATH:-$default_nixpkgs_path}
 nixos_config="$repo/hosts/live-installer/configuration.nix"
+installer_config_dir=${CONFIG_DIR:-$repo/examples}
 
 usage() {
   cat <<'EOF'
@@ -17,6 +18,8 @@ to that file. Otherwise the ISO is copied into DEST using the build filename.
 
 Inputs:
   NIXPKGS_PATH   Nixpkgs source. Default: channel:nixos-26.05
+  CONFIG_DIR     Directory tree to embed under /etc/nixos-installer/configs.
+                 Default: repo examples directory.
 
 The script uses nix-build --no-out-link internally and writes SHA256SUMS next to
 the copied ISO.
@@ -60,6 +63,7 @@ nix_build_args=(
   -A config.system.build.isoImage
   -I "nixpkgs=$nixpkgs_path"
   -I "nixos-config=$nixos_config"
+  -I "nixboxes-installer-configs=$installer_config_dir"
   --no-out-link
 )
 
