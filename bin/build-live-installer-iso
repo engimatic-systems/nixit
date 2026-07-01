@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+default_nixpkgs_path="channel:nixos-26.05"
+nixpkgs_path=${NIXPKGS_PATH:-$default_nixpkgs_path}
+nixos_config="$repo/hosts/live-installer/configuration.nix"
+
+usage() {
+  cat <<'EOF'
+Usage: bin/build-live-installer-iso [DEST] [nix-build flags...]
+
+Build the nixboxes SSH-ready NixOS live installer ISO.
+
+DEST defaults to the current directory. If DEST ends in .iso, the ISO is copied
+to that file. Otherwise the ISO is copied into DEST using the build filename.
+
+Inputs:
+  NIXPKGS_PATH   Nixpkgs source. Default: channel:nixos-26.05
+
+The script uses nix-build --no-out-link internally and writes SHA256SUMS next to
+the copied ISO.
+EOF
+}
+
+case "${1:-}" in
+  -h|--help)
+    usage
+    exit 0
+    ;;
+esac
+
+case "$nixpkgs_path" in
+  channel:*)
+    if [[ "$nixpkgs_path" == "channel:" ]]; then
+      printf 'NIXPKGS_PATH channel source is empty\n' >&2
+      exit 1
+    fi
+    ;;
+  /*|./*|../*)
+    if [[ ! -e "$nixpkgs_path" ]]; then
+      printf 'NIXPKGS_PATH does not exist: %s\n' "$nixpkgs_path" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    printf 'NIXPKGS_PATH must be channel:<name> or a filesystem path: %s\n' "$nixpkgs_path" >&2
+    exit 1
+    ;;
+esac
+
+dest=$PWD
+if [[ $# -gt 0 && "${1:-}" != --* ]]; then
+  dest=$1
+  shift
+fi
+
+nix_build_args=(
+  '<nixpkgs/nixos>'
+  -A config.system.build.isoImage
+  -I "nixpkgs=$nixpkgs_path"
+  -I "nixos-config=$nixos_config"
+  --no-out-link
+)
+
+for arg in "$@"; do
+  case "$arg" in
+    --dry-run|--no-build)
+      NIX_PATH= nix-build "${nix_build_args[@]}" "$@"
+      exit 0
+      ;;
+  esac
+done
+
+store_out=$(NIX_PATH= nix-build "${nix_build_args[@]}" "$@")
+iso=$(find "$store_out/iso" -maxdepth 1 -type f -name '*.iso' | sort | head -n1)
+
+if [[ -z "$iso" ]]; then
+  printf 'no ISO found under %s/iso\n' "$store_out" >&2
+  exit 1
+fi
+
+if [[ "$dest" == *.iso ]]; then
+  iso_file=$dest
+  mkdir -p "$(dirname -- "$iso_file")"
+else
+  mkdir -p "$dest"
+  iso_file="$dest/$(basename -- "$iso")"
+fi
+
+cp -f -- "$iso" "$iso_file"
+
+iso_dir=$(CDPATH= cd -- "$(dirname -- "$iso_file")" && pwd)
+sum_file="$iso_dir/SHA256SUMS"
+sum_tmp=$(mktemp "$iso_dir/.SHA256SUMS.XXXXXX")
+
+(
+  cd "$iso_dir"
+  find . -maxdepth 1 -type f -name '*.iso' -printf '%f\0' \
+    | sort -z \
+    | xargs -0 sha256sum
+) > "$sum_tmp"
+
+mv -f -- "$sum_tmp" "$sum_file"
+
+printf 'ISO: %s\n' "$iso_file"

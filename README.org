@@ -10,8 +10,9 @@ runtime lifecycle.
 
 * Current Status
 
-Initial repository skeleton with host preflight. ISO build commands land in
-later PR train cars tracked from =sys= ticket =rni-lbjt=.
+Initial repository skeleton with host preflight and SSH-ready live ISO build.
+Installer config embedding and install helper behavior land in later PR train
+cars tracked from =sys= ticket =rni-lbjt=.
 
 * Contract
 
@@ -27,6 +28,7 @@ spec.org                 product contract
 README.org               operator orientation
 AGENTS.md                local agent instructions
 bin/preflight            host readiness check
+bin/build-live-installer-iso
 docs/                    operator documentation
 examples/                example installer config trees
 hosts/live-installer/    live ISO NixOS configuration
@@ -67,6 +69,53 @@ MIN_FREE_GIB=16 bin/preflight
 Preflight does not install Nix, create VMs, build an ISO, or mutate host package
 state. Nix may still resolve the selected Nixpkgs source using its ordinary
 store/cache behavior.
+
+* Build
+
+Run:
+
+#+begin_src sh
+bin/build-live-installer-iso
+#+end_src
+
+Default output is the ISO copied into the current directory plus =SHA256SUMS=:
+
+#+begin_example
+./nixboxes-live-installer-...-x86_64-linux.iso
+./SHA256SUMS
+#+end_example
+
+Write to a destination directory or exact ISO filename:
+
+#+begin_src sh
+bin/build-live-installer-iso .ephemera/iso
+bin/build-live-installer-iso .ephemera/iso/nixboxes-live.iso
+#+end_src
+
+Override the Nixpkgs source:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/build-live-installer-iso
+NIXPKGS_PATH=channel:nixos-unstable bin/build-live-installer-iso
+#+end_src
+
+Pass =nix-build= flags after the optional destination:
+
+#+begin_src sh
+bin/build-live-installer-iso --dry-run
+bin/build-live-installer-iso .ephemera/iso --dry-run
+#+end_src
+
+The script uses =nix-build --no-out-link= internally. Nix still realizes the
+build in =/nix/store=, but the user-facing artifacts are the copied ISO and
+adjacent checksum file.
+
+The live ISO enables password SSH for short-lived trusted-LAN installer use:
+
+| user  | password |
+|-------+----------|
+| nixos | nixos    |
+| root  | nixos    |
 
 * Non-Goals
 
