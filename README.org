@@ -35,6 +35,9 @@ hosts/live-installer/    live ISO NixOS configuration
 
 Generated ISOs, checksums, Nix result links, and scratch output are not tracked.
 
+Smoke expectations are documented in =docs/smoke.org=. VM provider choice,
+runtime lifecycle, networking shape, and teardown remain operator-owned.
+
 * Preflight
 
 Run:
