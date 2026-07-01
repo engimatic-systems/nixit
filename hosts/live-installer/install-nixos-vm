@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+mount_root=${NIXBOXES_INSTALL_ROOT:-/mnt}
+part_wait_tries=${NIXBOXES_PART_WAIT_TRIES:-100}
+part_wait_seconds=${NIXBOXES_PART_WAIT_SECONDS:-0.1}
+
+die() {
+  printf '%s\n' "$*" >&2
+  exit 1
+}
+
+print_available_disks() {
+  printf '\nAvailable block devices:\n' >&2
+  lsblk >&2 || true
+  cat >&2 <<'EOF'
+
+Pick the target install disk, then run:
+  DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+EOF
+}
+
+require_inputs() {
+  local missing=0
+
+  if [[ -z "${DISK:-}" ]]; then
+    printf 'DISK is required.\n' >&2
+    missing=1
+  fi
+
+  if [[ -z "${CONFIGURATION_NIX:-}" ]]; then
+    printf 'CONFIGURATION_NIX is required.\n' >&2
+    missing=1
+  fi
+
+  if (( missing )); then
+    print_available_disks
+    exit 1
+  fi
+
+  if [[ ! -f "$CONFIGURATION_NIX" || ! -r "$CONFIGURATION_NIX" ]]; then
+    die "CONFIGURATION_NIX must be a readable file: $CONFIGURATION_NIX"
+  fi
+}
+
+partition_path() {
+  local disk=$1
+  local number=$2
+  local base
+
+  base=$(basename -- "$disk")
+  case "$base" in
+    *[0-9])
+      printf '%sp%s\n' "$disk" "$number"
+      ;;
+    *)
+      printf '%s%s\n' "$disk" "$number"
+      ;;
+  esac
+}
+
+wait_for_device() {
+  local device=$1
+  local tries=$part_wait_tries
+
+  while (( tries > 0 )); do
+    if [[ -e "$device" ]]; then
+      return 0
+    fi
+
+    sleep "$part_wait_seconds"
+    tries=$((tries - 1))
+  done
+
+  die "partition device did not appear: $device"
+}
+
+require_inputs
+
+config_parent=$(dirname -- "$CONFIGURATION_NIX")
+config_dir=$(CDPATH='' cd -- "$config_parent" && pwd -P)
+target_config_dir="$mount_root/etc/nixos"
+bios_part=$(partition_path "$DISK" 1)
+root_part=$(partition_path "$DISK" 2)
+
+printf 'Installing NixOS to %s. This will destroy data on %s.\n' "$DISK" "$DISK"
+
+wipefs --all --force "$DISK"
+parted --script "$DISK" mklabel gpt
+parted --script "$DISK" mkpart primary 1MiB 2MiB
+parted --script "$DISK" set 1 bios_grub on
+parted --script "$DISK" mkpart primary ext4 2MiB 100%
+partprobe "$DISK" || true
+
+if command -v udevadm >/dev/null 2>&1; then
+  udevadm settle || true
+fi
+
+wait_for_device "$bios_part"
+wait_for_device "$root_part"
+
+mkfs.ext4 -F -L nixos "$root_part"
+mkdir -p "$mount_root"
+mount "$root_part" "$mount_root"
+
+mkdir -p "$target_config_dir"
+rm -rf -- "$target_config_dir"
+mkdir -p "$target_config_dir"
+cp -a -- "$config_dir/." "$target_config_dir/"
+
+if [[ ! -e "$target_config_dir/hardware-configuration.nix" ]]; then
+  nixos-generate-config --root "$mount_root"
+fi
+
+nixos-install --root "$mount_root"

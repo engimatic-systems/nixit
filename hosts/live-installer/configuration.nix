@@ -13,6 +13,26 @@ in
 
   boot.zfs.forceImportRoot = false;
 
+  environment.systemPackages = with pkgs; [
+    bashInteractive
+    curl
+    git
+    openssh
+    parted
+    util-linux
+    vim
+    (writeShellApplication {
+      name = "install-nixos-vm";
+      runtimeInputs = [
+        coreutils
+        e2fsprogs
+        parted
+        util-linux
+      ];
+      text = builtins.readFile ./install-nixos-vm;
+    })
+  ];
+
   networking.hostName = "nixboxes-live";
 
   nix.settings.experimental-features = [
@@ -36,14 +56,6 @@ in
     extraGroups = [ "wheel" ];
     initialHashedPassword = lib.mkForce nixosPasswordHash;
   };
-
-  environment.systemPackages = with pkgs; [
-    bashInteractive
-    curl
-    git
-    openssh
-    vim
-  ];
 
   environment.etc."nixos-installer/configs".source = installerConfigs;
 

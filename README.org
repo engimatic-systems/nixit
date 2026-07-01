@@ -10,9 +10,8 @@ runtime lifecycle.
 
 * Current Status
 
-Initial repository skeleton with host preflight, SSH-ready live ISO build, and
-installer config embedding. Install helper behavior lands in later PR train cars
-tracked from =sys= ticket =rni-lbjt=.
+Initial repository skeleton with host preflight, SSH-ready live ISO build,
+installer config embedding, and an in-ISO =install-nixos-vm= helper.
 
 * Contract
 
@@ -137,6 +136,19 @@ The live ISO enables password SSH for short-lived trusted-LAN installer use:
 |-------+----------|
 | nixos | nixos    |
 | root  | nixos    |
+
+* Install
+
+Boot the ISO, attach a target disk, SSH into the live system, and run:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+#+end_src
+
+=DISK= is destructive. The helper partitions, formats, and mounts that disk,
+copies the directory containing =CONFIGURATION_NIX= to =/mnt/etc/nixos=,
+generates hardware config only when the copied tree lacks
+=hardware-configuration.nix=, and runs =nixos-install=.
 
 * Non-Goals
 
