@@ -1,0 +1,44 @@
+#+TITLE: nixboxes
+
+* Purpose
+
+=nixboxes= turns explicit NixOS installer config into an SSH-ready ISO file and
+checksum.
+
+It does not manage the host, install Nix, create VMs, provision secrets, or own
+runtime lifecycle.
+
+* Current Status
+
+Initial repository skeleton. Functional build commands land in later PR train
+cars tracked from =sys= ticket =rni-lbjt=.
+
+* Contract
+
+Given a Linux host with Nix tooling, this repo will build a bootable NixOS live
+installer ISO.
+
+The ISO contract is specified in =spec.org=.
+
+* Repository Layout
+
+#+begin_example
+spec.org                 product contract
+README.org               operator orientation
+AGENTS.md                local agent instructions
+bin/                     host-side commands
+docs/                    operator documentation
+examples/                example installer config trees
+hosts/live-installer/    live ISO NixOS configuration
+#+end_example
+
+Generated ISOs, checksums, Nix result links, and scratch output are not tracked.
+
+* Non-Goals
+
+- Installing Nix on the host.
+- Managing VM lifecycle.
+- Choosing VM provider tooling.
+- Managing secrets.
+- Provisioning SSH keys.
+- Installing Codex, mise, or other agent toolchains.
