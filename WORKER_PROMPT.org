@@ -1,0 +1,25 @@
+#+TITLE: nixit worker prompt
+
+* Current Branches
+
+- integration base: =integration/initial=
+- plan branch: =train/000-plan=
+
+* Source Of Truth
+
+- =PLAN.org=
+- =spec.org= once introduced
+- =README.org=
+- =docs/smoke.org= once introduced
+
+* Hard Rule
+
+Do not merge PRs. Do not advance or retarget the train unless the operator asks.
+
+* Work Mode
+
+Each train branch is stacked on the previous branch so the PR diff is readable.
+When implementing a train car, edit only that branch's review surface.
+
+If a later discovery changes a pipeline boundary, update =PLAN.org= in a new
+reviewable branch instead of silently reshaping implementation.

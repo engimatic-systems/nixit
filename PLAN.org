@@ -1,0 +1,284 @@
+#+TITLE: nixit initial PR train
+
+* Boundary
+
+=nixit= turns explicit NixOS installer config into an SSH-ready ISO file and
+checksum.
+
+It does not manage VM lifecycle, install Nix on the host, provision secrets, or
+own runtime networking.
+
+* Pipeline
+
+The repo pipeline is:
+
+#+begin_example
+operator config -> host preflight -> ISO build -> embedded config -> live install helper -> smoke evidence
+#+end_example
+
+** Operator Config
+
+Receives:
+
+- repo default minimal config
+- optional caller =CONFIG_DIR=
+
+Emits:
+
+- raw config tree for embedding
+
+May mutate:
+
+- nothing
+
+Must not know:
+
+- VM provider lifecycle
+- install target disk
+
+** Host Preflight
+
+Receives:
+
+- host OS/arch facts
+- Nix tooling availability
+- selected =NIXPKGS_PATH=
+- rough free-space facts
+
+Emits:
+
+- pass/fail readiness result
+
+May mutate:
+
+- nothing in host package state
+
+Must not know:
+
+- VM provider choice
+- installer config content
+
+** ISO Build
+
+Receives:
+
+- explicit Nixpkgs source
+- live installer NixOS config
+- optional destination
+
+Emits:
+
+- ordinary =.iso= file
+- adjacent =SHA256SUMS=
+
+May mutate:
+
+- Nix store through normal =nix-build= behavior
+- requested artifact directory
+
+Must not know:
+
+- VM provider lifecycle
+- target install disk
+
+** Embedded Config
+
+Receives:
+
+- repo =examples/= default tree or caller =CONFIG_DIR=
+
+Emits:
+
+- =/etc/nixos-installer/configs/= inside live ISO
+
+May mutate:
+
+- live ISO closure only
+
+Must not know:
+
+- install helper sequencing
+- VM provider choice
+
+** Live Install Helper
+
+Receives:
+
+- explicit =DISK=
+- explicit =CONFIGURATION_NIX=
+- live block-device facts
+
+Emits:
+
+- installed NixOS system on selected disk
+
+May mutate:
+
+- selected target disk only
+- =/mnt= during install
+
+Must not know:
+
+- host-side build mechanics
+- caller secret policy
+
+** Smoke Evidence
+
+Receives:
+
+- built ISO
+- chosen VM provider context
+- disposable target disk
+
+Emits:
+
+- evidence for build, live boot, SSH, config embedding, helper failure modes,
+  disposable install, installed boot, and installed SSH
+
+May mutate:
+
+- disposable smoke artifacts
+
+Must not know:
+
+- production VM lifecycle
+- secrets
+
+* PR Stack
+
+Do not merge PRs. Do not advance or retarget the train unless the operator asks.
+
+The stack is intentionally based on the previous train branch so GitHub shows
+one review slice per PR.
+
+** PR 0: Train Plan
+
+Branch: =train/000-plan=
+
+Base: =integration/initial=
+
+Goal: establish review sequence and pipeline boundaries.
+
+Deliverables:
+
+- =PLAN.org=
+
+Review question: does the train split the repo by the right ownership verbs?
+
+** PR 1: Spec And Skeleton
+
+Branch: =train/001-spec-skeleton=
+
+Base: =train/000-plan=
+
+Goal: make the repo legible before behavior exists.
+
+Deliverables:
+
+- =spec.org=
+- =README.org=
+- =AGENTS.md=
+- =.gitignore=
+- initial directories
+
+Review question: does the repo boundary explain what =nixit= owns and refuses?
+
+** PR 2: Preflight
+
+Branch: =train/002-preflight=
+
+Base: =train/001-spec-skeleton=
+
+Goal: check host readiness without installing or mutating host package state.
+
+Deliverables:
+
+- =bin/preflight=
+- README preflight docs
+
+Review question: does preflight fail early enough without becoming host
+provisioning?
+
+** PR 3: ISO Build
+
+Branch: =train/003-build-iso=
+
+Base: =train/002-preflight=
+
+Goal: build an SSH-ready live ISO and checksum from explicit Nixpkgs input.
+
+Deliverables:
+
+- =bin/build-live-installer-iso=
+- live installer NixOS config
+- checksum behavior
+
+Review question: is the host-side artifact contract unsurprising?
+
+** PR 4: Config Embedding
+
+Branch: =train/004-config-embedding=
+
+Base: =train/003-build-iso=
+
+Goal: embed default or caller-provided installer config trees without
+interpretation.
+
+Deliverables:
+
+- =CONFIG_DIR= build input
+- =examples/minimal/configuration.nix=
+- README config embedding docs
+
+Review question: is raw config-tree copying explicit enough to avoid hidden
+policy?
+
+** PR 5: Install Helper
+
+Branch: =train/005-install-helper=
+
+Base: =train/004-config-embedding=
+
+Goal: install NixOS onto an explicitly selected disposable disk from an
+explicit config file.
+
+Deliverables:
+
+- =install-nixos-vm= in live ISO PATH
+- helper tests
+- brief README install usage
+
+Review question: are destructive boundaries and required inputs obvious?
+
+** PR 6: Smoke Docs
+
+Branch: =train/006-smoke-docs=
+
+Base: =train/005-install-helper=
+
+Goal: document provider-neutral smoke expectations.
+
+Deliverables:
+
+- =docs/smoke.org=
+- README pointer
+
+Review question: does smoke guidance separate repo contract from VM provider
+choice?
+
+** PR 7: Cold Smoke Fixes
+
+Branch: =train/007-cold-smoke-fixes=
+
+Base: =train/006-smoke-docs=
+
+Goal: carry the fixes discovered by fresh clone QEMU/KVM cold smoke.
+
+Deliverables:
+
+- mount retry in =install-nixos-vm=
+- regression test for transient first mount failure
+- symlink-safe embedded-config smoke command
+
+Review question: are these fixes justified by the cold-smoke failures and kept
+bounded?
