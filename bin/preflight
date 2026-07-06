@@ -12,7 +12,7 @@ usage() {
   cat <<'EOF'
 Usage: bin/preflight
 
-Checks whether this host is likely ready to build a nixboxes installer ISO.
+Checks whether this host is likely ready to build a nixit installer ISO.
 
 Inputs:
   NIXPKGS_PATH   Nixpkgs source. Default: channel:nixos-26.05
@@ -103,8 +103,8 @@ if (( $# > 0 )); then
   exit 2
 fi
 
-host_os="${NIXBOXES_PREFLIGHT_UNAME_S:-$(uname -s)}"
-host_arch="${NIXBOXES_PREFLIGHT_UNAME_M:-$(uname -m)}"
+host_os="${NIXIT_PREFLIGHT_UNAME_S:-$(uname -s)}"
+host_arch="${NIXIT_PREFLIGHT_UNAME_M:-$(uname -m)}"
 
 if [[ "$host_os" == "Linux" ]]; then
   pass "host OS is Linux"

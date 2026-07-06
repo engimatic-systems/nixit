@@ -282,3 +282,20 @@ Deliverables:
 
 Review question: are these fixes justified by the cold-smoke failures and kept
 bounded?
+
+** PR 8: Nixit Naming
+
+Branch: =train/008-nixit-naming=
+
+Base: =train/007-cold-smoke-fixes=
+
+Goal: adapt the lifted implementation to the new repo name.
+
+Deliverables:
+
+- user-facing docs say =nixit=
+- ISO basename and live hostname use =nixit=
+- test-hook environment variables use =NIXIT_=
+- internal Nix search-path key uses =nixit-installer-configs=
+
+Review question: is the repo-name adaptation purely mechanical and complete?

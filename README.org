@@ -1,8 +1,8 @@
-#+TITLE: nixboxes
+#+TITLE: nixit
 
 * Purpose
 
-=nixboxes= turns explicit NixOS installer config into an SSH-ready ISO file and
+=nixit= turns explicit NixOS installer config into an SSH-ready ISO file and
 checksum.
 
 It does not manage the host, install Nix, create VMs, provision secrets, or own
@@ -83,7 +83,7 @@ bin/build-live-installer-iso
 Default output is the ISO copied into the current directory plus =SHA256SUMS=:
 
 #+begin_example
-./nixboxes-live-installer-...-x86_64-linux.iso
+./nixit-live-installer-...-x86_64-linux.iso
 ./SHA256SUMS
 #+end_example
 
@@ -91,7 +91,7 @@ Write to a destination directory or exact ISO filename:
 
 #+begin_src sh
 bin/build-live-installer-iso .ephemera/iso
-bin/build-live-installer-iso .ephemera/iso/nixboxes-live.iso
+bin/build-live-installer-iso .ephemera/iso/nixit-live.iso
 #+end_src
 
 Override the Nixpkgs source:

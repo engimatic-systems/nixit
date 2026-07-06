@@ -1,6 +1,6 @@
 Say true things. State uncertainty plainly.
 
-=nixboxes= is intentionally small:
+=nixit= is intentionally small:
 
 - Implementation lives here.
 - Ticket orchestration and evidence live in =sys=.

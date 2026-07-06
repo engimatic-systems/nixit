@@ -2,14 +2,14 @@
 
 let
   nixosPasswordHash = "$6$syslive01$0wi4jkHHnvt8vKxMWfyywbXm4yp6uz1EvN.48GldIWhOYGHQDNUxwtB3ql3YTq3FDDc72Q130Nj47VSKNh./5/";
-  installerConfigs = <nixboxes-installer-configs>;
+  installerConfigs = <nixit-installer-configs>;
 in
 {
   imports = [
     <nixpkgs/nixos/modules/installer/cd-dvd/installation-cd-minimal.nix>
   ];
 
-  image.baseName = lib.mkForce "nixboxes-live-installer-${config.system.nixos.label}-${pkgs.stdenv.hostPlatform.system}";
+  image.baseName = lib.mkForce "nixit-live-installer-${config.system.nixos.label}-${pkgs.stdenv.hostPlatform.system}";
 
   boot.zfs.forceImportRoot = false;
 
@@ -33,7 +33,7 @@ in
     })
   ];
 
-  networking.hostName = "nixboxes-live";
+  networking.hostName = "nixit-live";
 
   nix.settings.experimental-features = [
     "nix-command"

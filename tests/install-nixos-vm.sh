@@ -128,7 +128,7 @@ run_helper() {
     PATH="$tmp_root/bin:$PATH" \
     FAKE_LOG="$tmp_root/log" \
     FAKE_ROOT="$tmp_root" \
-    NIXBOXES_INSTALL_ROOT="$tmp_root/mnt" \
+    NIXIT_INSTALL_ROOT="$tmp_root/mnt" \
     "$@" \
     "$script" > "$tmp_root/output" 2>&1
 }

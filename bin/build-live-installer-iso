@@ -11,7 +11,7 @@ usage() {
   cat <<'EOF'
 Usage: bin/build-live-installer-iso [DEST] [nix-build flags...]
 
-Build the nixboxes SSH-ready NixOS live installer ISO.
+Build the nixit SSH-ready NixOS live installer ISO.
 
 DEST defaults to the current directory. If DEST ends in .iso, the ISO is copied
 to that file. Otherwise the ISO is copied into DEST using the build filename.
@@ -63,7 +63,7 @@ nix_build_args=(
   -A config.system.build.isoImage
   -I "nixpkgs=$nixpkgs_path"
   -I "nixos-config=$nixos_config"
-  -I "nixboxes-installer-configs=$installer_config_dir"
+  -I "nixit-installer-configs=$installer_config_dir"
   --no-out-link
 )
 

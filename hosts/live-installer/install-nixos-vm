@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-mount_root=${NIXBOXES_INSTALL_ROOT:-/mnt}
-part_wait_tries=${NIXBOXES_PART_WAIT_TRIES:-100}
-part_wait_seconds=${NIXBOXES_PART_WAIT_SECONDS:-0.1}
+mount_root=${NIXIT_INSTALL_ROOT:-/mnt}
+part_wait_tries=${NIXIT_PART_WAIT_TRIES:-100}
+part_wait_seconds=${NIXIT_PART_WAIT_SECONDS:-0.1}
 
 die() {
   printf '%s\n' "$*" >&2
