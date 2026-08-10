@@ -1,0 +1,202 @@
+#+TITLE: nixit Smoke Path
+
+* Purpose
+
+This document describes provider-neutral smoke expectations for =nixit=.
+
+The repo owns build artifacts, embedded installer config, live ISO behavior, and
+the in-ISO install helper contract. Operators own VM provider lifecycle,
+network attachment, disk attachment, console access, and teardown.
+
+* Required Smoke Evidence
+
+Capture enough evidence in ticket notes to show:
+
+- exact branch and commit tested
+- =bin/preflight= result
+- build command, selected =NIXPKGS_PATH=, ISO path, and checksum verification
+- VM provider used, without treating that provider as part of the repo contract
+- successful SSH into the live ISO as =nixos= and =root=
+- embedded config tree visible under =/etc/nixos-installer/configs/=
+- negative =install-nixos-vm= checks for missing inputs fail before mutation
+- install helper command used for any disposable install attempt
+- installed system boot result, when attempted
+- SSH into installed system using installed config, when attempted
+- gaps left, especially any cold-smoke step skipped for lack of provider,
+  acceleration, disk, time, or network access
+
+Avoid recording secrets. The documented live ISO passwords are not secrets.
+
+* Required Verification
+
+** Preflight
+
+Run from repo root:
+
+#+begin_src sh
+bin/preflight
+#+end_src
+
+Record pass/fail output and the selected Nixpkgs source. If using a non-default
+source, make it explicit:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/preflight
+NIXPKGS_PATH=channel:nixos-unstable bin/preflight
+#+end_src
+
+** Build ISO And Checksum
+
+Build into an artifact directory:
+
+#+begin_src sh
+bin/build-live-installer-iso .ephemera/iso
+#+end_src
+
+The script prints =ISO: <path>= and writes =SHA256SUMS= next to the ISO.
+Verify checksums from that directory:
+
+#+begin_src sh
+cd .ephemera/iso
+sha256sum -c SHA256SUMS
+#+end_src
+
+Record the ISO filename and checksum result.
+
+** Boot Live ISO
+
+Boot the ISO with chosen VM tooling. The repo contract does not require a
+specific provider, command line, accelerator, port forward, disk image format,
+or lifecycle manager.
+
+Provider requirements for smoke are coarse:
+
+- boot the generated ISO
+- expose console or logs sufficient to diagnose boot failure
+- provide SSH reachability to the live system
+- attach a blank disposable target disk before install testing
+- allow booting the installed disk without the ISO for cold smoke
+
+Record provider name, version when useful, and the high-level boot shape.
+
+** SSH Into Live System
+
+The live ISO enables password SSH for short-lived trusted-LAN installer use:
+
+| user  | password |
+|-------+----------|
+| nixos | nixos    |
+| root  | nixos    |
+
+Verify both logins if provider networking permits:
+
+#+begin_src sh
+ssh <ssh-options> nixos@<live-host> true
+ssh <ssh-options> root@<live-host> true
+#+end_src
+
+Record the addressing method, not public network details beyond what is needed
+to explain the smoke.
+
+** Inspect Embedded Configs
+
+Inside the live system:
+
+#+begin_src sh
+find /etc/nixos-installer/configs/ -maxdepth 3 -type f -print | sort
+test -r /etc/nixos-installer/configs/minimal/configuration.nix
+command -v install-nixos-vm
+#+end_src
+
+If =CONFIG_DIR= was supplied at build time, verify the caller-owned tree appears
+under =/etc/nixos-installer/configs/= instead of assuming the repo default
+=minimal= tree is present.
+
+** Negative Helper Checks
+
+Run negative checks inside the live system before destructive install testing.
+These checks verify missing inputs fail before mutation and print available
+block devices:
+
+#+begin_src sh
+install-nixos-vm
+DISK=/dev/vda install-nixos-vm
+CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+#+end_src
+
+Each command must fail. Record the failure shape, including that missing input
+was reported and =lsblk= output was printed.
+
+Do not run the helper with both =DISK= and =CONFIGURATION_NIX= set until the
+target disk is disposable and selected intentionally.
+
+** Install In Disposable VM
+
+When feasible, attach a blank disposable target disk and run:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+#+end_src
+
+=DISK= is destructive. Use the provider's observed disk name, not necessarily
+=/dev/vda=. Record the exact command and enough output to show partitioning,
+config copy or generation, and =nixos-install= completion.
+
+** Boot Installed System
+
+For cold smoke, reboot with the ISO detached and the installed disk attached.
+Verify the installed system boots and accepts SSH using the installed config:
+
+#+begin_src sh
+ssh <ssh-options> nixos@<installed-host> true
+#+end_src
+
+With the repo default =minimal= config, the installed login is:
+
+| user  | password |
+|-------+----------|
+| nixos | nixos    |
+
+Record whether cold smoke completed. If it did not, record the blocking gap.
+
+* Optional Provider Example: QEMU/KVM
+
+This section is illustrative. It is not the runtime contract.
+
+One possible local shape:
+
+#+begin_src sh
+mkdir -p .ephemera/vm
+qemu-img create -f qcow2 .ephemera/vm/nixit-target.qcow2 20G
+
+qemu-system-x86_64 \
+  -enable-kvm \
+  -m 4096 \
+  -smp 2 \
+  -cdrom .ephemera/iso/<iso-name>.iso \
+  -drive file=.ephemera/vm/nixit-target.qcow2,format=qcow2,if=virtio \
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+  -device virtio-net-pci,netdev=net0
+#+end_src
+
+Live SSH through this example port forward:
+
+#+begin_src sh
+ssh -p 2222 nixos@127.0.0.1 true
+ssh -p 2222 root@127.0.0.1 true
+#+end_src
+
+After install, stop the VM and boot the target disk without =-cdrom=:
+
+#+begin_src sh
+qemu-system-x86_64 \
+  -enable-kvm \
+  -m 4096 \
+  -smp 2 \
+  -drive file=.ephemera/vm/nixit-target.qcow2,format=qcow2,if=virtio \
+  -netdev user,id=net0,hostfwd=tcp::2222-:22 \
+  -device virtio-net-pci,netdev=net0
+#+end_src
+
+Adjust accelerator, CPU, memory, disk bus, port forwarding, and firmware for
+local host constraints.

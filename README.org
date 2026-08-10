@@ -1,0 +1,163 @@
+#+TITLE: nixit
+
+* Purpose
+
+=nixit= turns explicit NixOS installer config into an SSH-ready ISO file and
+checksum.
+
+It does not manage the host, install Nix, create VMs, provision secrets, or own
+runtime lifecycle.
+
+* Current Status
+
+Initial repository skeleton with host preflight, SSH-ready live ISO build,
+installer config embedding, and an in-ISO =install-nixos-vm= helper.
+
+* Contract
+
+Given a Linux host with Nix tooling, this repo will build a bootable NixOS live
+installer ISO.
+
+The ISO contract is specified in =spec.org=.
+
+* Repository Layout
+
+#+begin_example
+spec.org                 product contract
+README.org               operator orientation
+AGENTS.md                local agent instructions
+bin/preflight            host readiness check
+bin/build-live-installer-iso
+docs/                    operator documentation
+examples/                example installer config trees
+hosts/live-installer/    live ISO NixOS configuration
+#+end_example
+
+Generated ISOs, checksums, Nix result links, and scratch output are not tracked.
+
+Smoke expectations are documented in =docs/smoke.org=. VM provider choice,
+runtime lifecycle, networking shape, and teardown remain operator-owned.
+
+* Preflight
+
+Run:
+
+#+begin_src sh
+bin/preflight
+#+end_src
+
+Preflight checks:
+
+- host OS is Linux
+- host architecture is =x86_64=
+- =nix-build= is available
+- current directory and Nix store filesystems have rough free space
+- selected =NIXPKGS_PATH= has a supported shape and resolves through Nix
+
+Default Nixpkgs source:
+
+#+begin_src sh
+NIXPKGS_PATH=channel:nixos-26.05
+#+end_src
+
+Override examples:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/preflight
+NIXPKGS_PATH=channel:nixos-unstable bin/preflight
+MIN_FREE_GIB=16 bin/preflight
+#+end_src
+
+Preflight does not install Nix, create VMs, build an ISO, or mutate host package
+state. Nix may still resolve the selected Nixpkgs source using its ordinary
+store/cache behavior.
+
+* Build
+
+Run:
+
+#+begin_src sh
+bin/build-live-installer-iso
+#+end_src
+
+Default output is the ISO copied into the current directory plus =SHA256SUMS=:
+
+#+begin_example
+./nixit-live-installer-...-x86_64-linux.iso
+./SHA256SUMS
+#+end_example
+
+Write to a destination directory or exact ISO filename:
+
+#+begin_src sh
+bin/build-live-installer-iso .ephemera/iso
+bin/build-live-installer-iso .ephemera/iso/nixit-live.iso
+#+end_src
+
+Override the Nixpkgs source:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/build-live-installer-iso
+NIXPKGS_PATH=channel:nixos-unstable bin/build-live-installer-iso
+#+end_src
+
+Embed installer configs:
+
+#+begin_src sh
+bin/build-live-installer-iso
+CONFIG_DIR=./my-configs bin/build-live-installer-iso
+#+end_src
+
+When =CONFIG_DIR= is unset, the repo default =examples/minimal/= tree is
+available in the ISO at =/etc/nixos-installer/configs/minimal/=. When
+=CONFIG_DIR= is set, its contents are raw-copied into
+=/etc/nixos-installer/configs/= and the default =minimal= tree is not included
+unless the caller supplied it.
+
+Caller configs are bring-your-own NixOS configuration trees. The build does not
+template, rewrite, validate, or interpret them beyond ordinary Nix build
+failures, and operators use them at their own risk.
+
+The default =minimal= tree is for smoke testing and day-1 bootstrap. It assumes
+a target VM disk at =/dev/vda= for GRUB; real installs should bring an explicit
+operator-owned config.
+
+Pass =nix-build= flags after the optional destination:
+
+#+begin_src sh
+bin/build-live-installer-iso --dry-run
+bin/build-live-installer-iso .ephemera/iso --dry-run
+#+end_src
+
+The script uses =nix-build --no-out-link= internally. Nix still realizes the
+build in =/nix/store=, but the user-facing artifacts are the copied ISO and
+adjacent checksum file.
+
+The live ISO enables password SSH for short-lived trusted-LAN installer use:
+
+| user  | password |
+|-------+----------|
+| nixos | nixos    |
+| root  | nixos    |
+
+* Install
+
+Boot the ISO, attach a target disk, SSH into the live system, and run:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+#+end_src
+
+=DISK= is destructive. The helper partitions, formats, and mounts that disk,
+copies the directory containing =CONFIGURATION_NIX= to =/mnt/etc/nixos=,
+generates hardware config only when the copied tree lacks
+=hardware-configuration.nix=, and runs =nixos-install=.
+
+* Non-Goals
+
+- Installing Nix on the host.
+- Managing VM lifecycle.
+- Choosing VM provider tooling.
+- Managing secrets.
+- Provisioning SSH keys.
+- Installing Codex, mise, or other agent toolchains.
