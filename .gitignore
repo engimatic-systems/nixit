@@ -1,0 +1,16 @@
+# Nix build result links
+/result
+/result-*
+
+# Generated installer media and checksums
+/*.iso
+/*.iso.sha256
+/SHA256SUMS
+
+# Local scratch output
+/.ephemera/
+/.tmp/
+
+# VM provider scratch files
+/*.qcow2
+/*.img

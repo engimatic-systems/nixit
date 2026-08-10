@@ -1,0 +1,287 @@
+#+TITLE: Portable SSH-ready NixOS live installer spec
+
+* Purpose
+
+This repo turns explicit NixOS installer config into an SSH-ready ISO file and
+checksum.
+
+It does not manage the host, install Nix, create VMs, provision secrets, or own
+runtime lifecycle.
+
+* Core Contract
+
+Given a Linux host with Nix tooling, build a bootable NixOS live installer ISO.
+
+The ISO must:
+
+- boot into a live NixOS environment
+- run =sshd=
+- allow =nixos:nixos= and =root:nixos= in the live environment
+- include a generic =install-nixos-vm= helper
+- include NixOS install configs under =/etc/nixos-installer/configs/=
+
+The build must produce:
+
+- one ordinary =.iso= file
+- one =SHA256SUMS= file
+
+* Non-Goals
+
+- Installing Nix on the host.
+- Managing VM lifecycle.
+- Choosing QEMU, libvirt, VirtualBox, Hyper-V, VMware, or cloud tooling.
+- Managing secrets.
+- Provisioning operator SSH keys.
+- Installing Codex, mise, or other agent toolchains.
+- Producing airgapped or hermetic builds in v1.
+- Replacing Nix store semantics.
+
+* Host Prerequisites
+
+Required:
+
+- Linux host.
+- =x86_64-linux= builder.
+- Network access to selected Nixpkgs source.
+- Nix tooling, including =nix-build=.
+- Enough disk space for Nix store realization and copied ISO.
+
+Optional:
+
+- VM tooling for local smoke testing.
+
+* Preflight Contract
+
+=bin/preflight= checks host readiness.
+
+It must check:
+
+- host is Linux
+- architecture is supported
+- =nix-build= exists
+- enough disk space appears available
+- selected =NIXPKGS_PATH= is usable enough to start a build
+
+It must not install Nix or mutate host package state.
+
+If Nix is missing, it should fail with plain guidance:
+
+#+begin_example
+nix-build was not found.
+
+Install Nix for this host, then rerun preflight.
+Examples:
+  Arch:   sudo pacman -S nix
+  Debian/Ubuntu: use your distro package or the upstream Nix installer
+#+end_example
+
+Exact host-package commands are advisory, not owned by this repo.
+
+* Nixpkgs Source Contract
+
+The build uses an explicit Nixpkgs source.
+
+Default:
+
+#+begin_src sh
+NIXPKGS_PATH=channel:nixos-26.05
+#+end_src
+
+Override examples:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs bin/build-live-installer-iso
+NIXPKGS_PATH=channel:nixos-unstable bin/build-live-installer-iso
+#+end_src
+
+Rules:
+
+- Build must not depend on ambient =NIX_PATH=.
+- Build must not depend on host channel state.
+- Filesystem-valued =NIXPKGS_PATH= must exist or fail before build.
+- Moving channel source is acceptable for v1.
+- Pinned reproducibility may be added later.
+
+* Build Contract
+
+=bin/build-live-installer-iso [DEST] [nix-build flags...]= builds the ISO.
+
+Rules:
+
+- Default =DEST= is current working directory.
+- If =DEST= ends in =.iso=, write that file.
+- Otherwise write the ISO into =DEST= using its build filename.
+- Print =ISO: <path>= on success.
+- Write or update =SHA256SUMS= next to the ISO.
+- Use =nix-build --no-out-link= internally.
+- Do not expose Nix out-link concepts.
+- Do not copy secrets into the ISO.
+
+* Config Embedding Contract
+
+=CONFIG_DIR= is a build-time input.
+
+If =CONFIG_DIR= is unset:
+
+- include repo default config tree at:
+  =/etc/nixos-installer/configs/minimal/=
+
+If =CONFIG_DIR= is set:
+
+- copy contents of =CONFIG_DIR= into:
+  =/etc/nixos-installer/configs/=
+- do not also include repo default =minimal= config unless the caller included
+  it in =CONFIG_DIR=
+- preserve directory structure
+- do not template, rewrite, validate, or interpret caller configs
+
+Example:
+
+#+begin_src sh
+CONFIG_DIR=./my-configs bin/build-live-installer-iso
+#+end_src
+
+Host tree:
+
+#+begin_example
+my-configs/
+  dayjob/configuration.nix
+  dayjob/users.nix
+  experiment/configuration.nix
+#+end_example
+
+ISO tree:
+
+#+begin_example
+/etc/nixos-installer/configs/
+  dayjob/configuration.nix
+  dayjob/users.nix
+  experiment/configuration.nix
+#+end_example
+
+* Minimal Config Contract
+
+The repo default minimal config exists for smoke testing and day-1 bootstrap.
+
+It should provide:
+
+- hostname =nixos=
+- DHCP networking
+- OpenSSH enabled
+- user =nixos= with password =nixos=
+- no root password
+- no SSH keys
+- no secrets
+- no Codex
+- no mise
+- small basic package set, e.g. =git=, =curl=, =vim=
+- =system.stateVersion=
+
+Operators should bring their own config for real use.
+
+* Live ISO Contract
+
+The live ISO must provide:
+
+- running =sshd=
+- live user =nixos= with password =nixos=
+- live root login with password =nixos=
+- =install-nixos-vm= in =PATH=
+- =nixos-generate-config= available
+- embedded configs at =/etc/nixos-installer/configs/=
+
+The live password model is intentionally for short-lived installer use on a
+trusted LAN.
+
+* Install Helper Contract
+
+=install-nixos-vm= runs inside the booted live ISO.
+
+Required environment:
+
+#+begin_src sh
+DISK=/dev/vda
+CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix
+#+end_src
+
+Rules:
+
+- =DISK= is required.
+- =CONFIGURATION_NIX= is required.
+- If either is missing, print =lsblk= and fail before mutation.
+- =CONFIGURATION_NIX= must point to a readable file.
+- The helper copies the directory containing =CONFIGURATION_NIX= to
+  =/mnt/etc/nixos=.
+- The helper partitions/formats/mounts =DISK=.
+- The helper must state that it will destroy data on =DISK=.
+- Explicit =DISK= is the confirmation; no interactive prompt required for v1.
+- The helper must wait for partition devices before formatting/mounting.
+- If copied config includes =hardware-configuration.nix=, preserve it.
+- Otherwise run =nixos-generate-config --root /mnt=.
+- Run =nixos-install=.
+- Leave the installed system bootable without the ISO.
+
+Missing =DISK= example:
+
+#+begin_example
+DISK is required.
+
+Available block devices:
+<lsblk output>
+
+Pick the target install disk, then run:
+  DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
+#+end_example
+
+* Smoke Guidance
+
+The repo documents smoke expectations, but does not own VM provider lifecycle.
+
+A reasonable smoke:
+
+- build ISO
+- verify =SHA256SUMS=
+- boot ISO with chosen VM tooling
+- attach a blank target disk
+- SSH into live ISO as =nixos=
+- SSH into live ISO as =root=
+- verify =install-nixos-vm= exists
+- install minimal config to target disk
+- reboot without ISO
+- verify installed system boots
+- SSH into installed system as =nixos=
+
+VM tooling specifics are operator-owned.
+
+* File Layout
+
+Suggested repo layout:
+
+#+begin_example
+README.org
+spec.org
+bin/
+  preflight
+  build-live-installer-iso
+hosts/
+  live-installer/
+    configuration.nix
+    install-nixos-vm.sh
+examples/
+  minimal/
+    configuration.nix
+docs/
+  smoke.org
+#+end_example
+
+* Sys Integration
+
+=sys= may consume this repo as:
+
+- submodule
+- flake input
+- pinned release artifact
+- documented external dependency
+
+=sys= should not carry a second active implementation of the portable installer
+once extraction is complete.
