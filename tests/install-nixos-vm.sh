@@ -43,6 +43,18 @@ assert_not_contains() {
   fi
 }
 
+assert_line_equals() {
+  local file=$1
+  local expected=$2
+
+  if ! grep -Fxq -- "$expected" "$file"; then
+    printf 'Expected exact line: %s\n' "$expected" >&2
+    printf 'Actual output:\n' >&2
+    sed -n '1,160p' "$file" >&2
+    exit 1
+  fi
+}
+
 new_case() {
   tmp_root=$(mktemp -d)
   mkdir -p "$tmp_root/bin" "$tmp_root/dev" "$tmp_root/config" "$tmp_root/mnt"
@@ -189,7 +201,7 @@ test_preserves_supplied_hardware_configuration() {
   assert_contains "$tmp_root/output" \
     "Installing NixOS to $tmp_root/dev/vda. This will destroy data on $tmp_root/dev/vda."
   assert_not_contains "$tmp_root/log" 'nixos-generate-config'
-  assert_contains "$tmp_root/log" "nixos-install --root $tmp_root/mnt"
+  assert_line_equals "$tmp_root/log" "nixos-install --root $tmp_root/mnt --no-root-password"
 
   cleanup
   tmp_root=
@@ -206,7 +218,7 @@ test_generates_missing_hardware_configuration() {
 
   assert_contains "$tmp_root/log" "nixos-generate-config --root $tmp_root/mnt"
   assert_contains "$tmp_root/mnt/etc/nixos/hardware-configuration.nix" '# generated'
-  assert_contains "$tmp_root/log" "nixos-install --root $tmp_root/mnt"
+  assert_line_equals "$tmp_root/log" "nixos-install --root $tmp_root/mnt --no-root-password"
 
   cleanup
   tmp_root=
@@ -224,7 +236,7 @@ test_retries_transient_mount_failure() {
 
   assert_contains "$tmp_root/log" "mount-attempt-1 $tmp_root/dev/vda2 $tmp_root/mnt"
   assert_contains "$tmp_root/log" "mount-attempt-2 $tmp_root/dev/vda2 $tmp_root/mnt"
-  assert_contains "$tmp_root/log" "nixos-install --root $tmp_root/mnt"
+  assert_line_equals "$tmp_root/log" "nixos-install --root $tmp_root/mnt --no-root-password"
 
   cleanup
   tmp_root=

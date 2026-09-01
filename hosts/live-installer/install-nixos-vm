@@ -129,4 +129,4 @@ if [[ ! -e "$target_config_dir/hardware-configuration.nix" ]]; then
   nixos-generate-config --root "$mount_root"
 fi
 
-nixos-install --root "$mount_root"
+nixos-install --root "$mount_root" --no-root-password

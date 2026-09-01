@@ -151,7 +151,10 @@ DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configurati
 =DISK= is destructive. The helper partitions, formats, and mounts that disk,
 copies the directory containing =CONFIGURATION_NIX= to =/mnt/etc/nixos=,
 generates hardware config only when the copied tree lacks
-=hardware-configuration.nix=, and runs =nixos-install=.
+=hardware-configuration.nix=, and runs =nixos-install --no-root-password=.
+
+Installer configs must explicitly define their desired login and root-account
+policy. The helper does not prompt for, generate, or manage root passwords.
 
 * Non-Goals
 
