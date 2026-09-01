@@ -1,0 +1,84 @@
+:PROPERTIES:
+:TKO_ID: nix-n8en
+:TKO_STATUS: open
+:TKO_DEPS: []
+:TKO_LINKS: []
+:TKO_CREATED: 2026-09-01T19:48:32Z
+:TKO_TYPE: bug
+:TKO_PRIORITY: 2
+:TKO_EXTERNAL_REF: https://github.com/engimatic-systems/nixit/issues/12
+:TKO_TAGS: [preflight]
+:END:
+
+* Diagnose unusable Nix stores and unavailable daemons in preflight
+
+** Description
+
+Track [[https://github.com/engimatic-systems/nixit/issues/12][GitHub issue #12]]: distinguish Nix tooling being present from the
+selected Nix store being usable before reporting a Nixpkgs source failure.
+
+The issue reports Arch Linux with dinit and package =nix 2.34.8-1=.
+=/usr/bin/nix-build= existed, but =/nix/store= did not and no dinit daemon
+service was active. Preflight reported that =channel:nixos-26.05= did not
+resolve, hiding the underlying error:
+
+#+begin_example
+error: creating directory "/nix/store": Permission denied
+#+end_example
+
+The reporter initialized the store manually with =sudo nix-store --init=;
+preflight then passed when run as root. This is reported evidence, not a
+reproduction performed when creating this ticket.
+
+** Scope
+
+- Add targeted diagnostics in =bin/preflight= for an uninitialized or
+  unusable store and for an unreachable daemon when the selected execution
+  model requires one.
+- Preserve explicit =NIXPKGS_PATH= selection and existing diagnostics for
+  genuinely invalid or unresolvable sources.
+- Add focused regression tests and document the Arch package plus
+  non-systemd init-system case in the existing user documentation.
+- Keep preflight non-mutating with respect to host setup: no package
+  installation, store initialization, service activation, or automatic sudo
+  escalation. Explain operator remedies without performing them.
+- Do not add VM lifecycle management, secrets, agent provisioning, or
+  dependencies on the separate GUI/RDP epic.
+
+** Acceptance Criteria
+
+- An uninitialized store produces an explicit store/setup failure and a
+  nonzero exit, rather than attributing that failure solely to Nixpkgs.
+- An unavailable required multi-user daemon produces an explicit
+  daemon/service failure with actionable, init-system-aware guidance.
+- Valid daemon-backed and daemonless installations are not rejected just
+  because the caller cannot write directly to =/nix/store= or because no
+  daemon exists. Diagnostics reflect the selected execution model.
+- With a usable store, a genuinely bad =NIXPKGS_PATH= still produces the
+  existing source-resolution failure. Successful preflight remains successful.
+- Documentation explains that an installed Arch Nix package and its systemd
+  units alone do not establish a working setup under dinit or another init
+  system. Any daemonless root-build guidance is conditional on that setup,
+  not a blanket instruction to run all builds as root.
+- Focused tests cover missing/unusable store, required daemon unavailable,
+  usable daemon and daemonless cases, bad source, and successful preflight.
+  Verify that setup failures do not trigger initialization or service changes.
+  Use isolated fixtures or command stubs; do not break the host installation.
+- Closure records the implementation commit, test commands/results, explicit
+  Nixpkgs source, and a smoke run on a usable host, distinguishing simulated
+  failures from any real-host reproduction and documenting remaining gaps.
+
+** Notes
+
+*** Expected invocation and implementation entry point
+
+#+begin_src sh
+NIXPKGS_PATH=channel:nixos-26.05 bin/preflight
+#+end_src
+
+The selected source must remain visible in output. At ticket creation,
+=bin/preflight= checks for =nix-build= and filesystem free space, then
+=check_nixpkgs_shape= suppresses stderr from =nix-instantiate --find-file=.
+That path collapses setup failures into the generic source-resolution error.
+Choose probes that respect the selected store and execution model; a raw
+directory-writability check alone cannot establish daemon-backed usability.
