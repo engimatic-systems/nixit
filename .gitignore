@@ -11,6 +11,9 @@
 /.ephemera/
 /.tmp/
 
+# Persistent ticket worktree (separate orphan history)
+/.tickets/
+
 # VM provider scratch files
 /*.qcow2
 /*.img

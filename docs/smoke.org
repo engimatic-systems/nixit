@@ -18,10 +18,14 @@ Capture enough evidence in ticket notes to show:
 - VM provider used, without treating that provider as part of the repo contract
 - successful SSH into the live ISO as =nixos= and =root=
 - embedded config tree visible under =/etc/nixos-installer/configs/=
+- selected installed example (=minimal= or =minimal-i3=) and its exact
+  =CONFIGURATION_NIX= path
 - negative =install-nixos-vm= checks for missing inputs fail before mutation
 - install helper command used for any disposable install attempt
 - installed system boot result, when attempted
 - SSH into installed system using installed config, when attempted
+- for =minimal-i3=, real-client rendered pixels, client-delivered input, and
+  exact process/session identity across disconnect and reconnect
 - gaps left, especially any cold-smoke step skipped for lack of provider,
   acceleration, disk, time, or network access
 
@@ -105,12 +109,14 @@ Inside the live system:
 #+begin_src sh
 find /etc/nixos-installer/configs/ -maxdepth 3 -type f -print | sort
 test -r /etc/nixos-installer/configs/minimal/configuration.nix
+test -r /etc/nixos-installer/configs/minimal-i3/configuration.nix
 command -v install-nixos-vm
 #+end_src
 
-If =CONFIG_DIR= was supplied at build time, verify the caller-owned tree appears
-under =/etc/nixos-installer/configs/= instead of assuming the repo default
-=minimal= tree is present.
+With the default build, both repo examples must be present. If =CONFIG_DIR= was
+supplied at build time, verify the caller-owned tree appears under
+=/etc/nixos-installer/configs/= instead. That input replaces the entire repo
+=examples/= tree, so neither default example is implied.
 
 ** Negative Helper Checks
 
@@ -138,6 +144,12 @@ When feasible, attach a blank disposable target disk and run:
 DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
 #+end_src
 
+To select the remote-i3 example:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal-i3/configuration.nix install-nixos-vm
+#+end_src
+
 =DISK= is destructive. Use the provider's observed disk name, not necessarily
 =/dev/vda=. Record the exact command and enough output to show partitioning,
 config copy or generation, and =nixos-install= completion.
@@ -161,7 +173,67 @@ Installer configs must explicitly define the desired installed login and
 root-account policy. The helper passes =--no-root-password= to
 =nixos-install= and never owns password setup itself.
 
+Both repo examples use =nixos:nixos= for the installed normal user, grant that
+user password-authenticated sudo through =wheel=, lock root, and deny root SSH
+login. The live installer's =root:nixos= credential is not an installed-system
+credential. Both examples assume BIOS/GRUB installation to =/dev/vda=; use
+them only with an intentionally disposable disk matching that assumption.
+
 Record whether cold smoke completed. If it did not, record the blocking gap.
+
+** Validate Minimal-i3 Through A Real RDP Client
+
+This section applies after =minimal-i3= has been installed and booted without
+the ISO. It does not require or imply a particular VM provider, client, host
+display server, or lifecycle tool.
+
+First verify installed normal-user SSH and establish an operator-side loopback
+tunnel:
+
+#+begin_src sh
+ssh <ssh-options> nixos@<installed-host> true
+ssh <ssh-options> -N \
+  -L 127.0.0.1:13389:127.0.0.1:3389 \
+  nixos@<installed-host>
+#+end_src
+
+The guest firewall is intended to admit SSH only. Record its active rules and
+show that SSH is accepted while no rule admits TCP 3389. Do not add an RDP
+provider port-forward or open the guest firewall for this smoke.
+
+Connect a real RDP client to =127.0.0.1:13389= as =nixos:nixos=. Record the
+client and version, the requested color depth, and a client-side capture that
+visibly shows i3, =xterm=, and the i3status bar. The proved baseline uses 24
+bits per pixel. Authentication success or a guest-side screenshot alone is
+not rendering evidence.
+
+Deliver input through the RDP client. For example, use =Mod4+Return= to open a
+terminal, click the rendered terminal to focus it, then type and submit a
+command that writes a unique marker under =/home/nixos=. Read that marker over
+SSH and capture the rendered terminal output. Correlating the client-side
+pixels with the guest-side marker distinguishes real input from an
+authentication-only check.
+
+Before disconnect, record the xrdp login-session identity and exact PID/start
+time/command lines for its Xorg, i3, and proof-terminal processes. Suitable
+guest observations include =loginctl= plus =ps= or =pgrep=; record the exact
+commands because process naming can vary by release.
+
+Disconnect by closing the RDP client or its network connection. Do not use
+=Mod4+Shift+e=, =i3-msg exit=, or another logout action: logout ends the
+session, while disconnect must retain it. With no client attached, verify over
+SSH that the recorded session and exact processes are still alive.
+
+Reconnect through the same tunnel using the same =nixos= user and the exact
+same bits per pixel. =Policy=UB= selects by user plus color depth; changing the
+depth requests a different session. Capture the original terminal and marker,
+then prove the same login-session identity and exact Xorg/i3/terminal PIDs and
+start times remain. New processes or merely similar pixels do not satisfy the
+same-session claim.
+
+Finally log out deliberately with =Mod4+Shift+e= and record teardown. Full
+build/install/cold-boot/RDP execution evidence belongs to the shipped-ISO smoke
+ticket; configuration evaluation alone must not be reported as runtime proof.
 
 * Optional Provider Example: QEMU/KVM
 

@@ -1,0 +1,86 @@
+#+TITLE: nixit Ticket Workflow
+
+* Storage
+
+Tickets live at the root of the orphan =codex/tickets= branch, mounted as a
+persistent linked worktree at =.tickets/= in the primary nixit checkout.
+The implementation branches ignore that directory. Never merge ticket history
+into implementation history.
+
+The local setup also excludes =/.tickets/= in =.git/info/exclude= so older
+implementation branches without the tracked ignore rule remain clean.
+
+=bin/tickets= forwards arguments to an existing =tko= on =PATH=. It explicitly
+selects this checkout's ticket store, overrides ambient =TICKETS_DIR=, and
+checks the worktree root, shared Git directory, and branch before invoking
+=tko=. It does not initialize storage, install tools, commit, or synchronize.
+
+#+begin_src sh
+bin/tickets help
+bin/tickets ready
+bin/tickets show <id>
+bin/tickets start <id>
+bin/tickets lint
+git -C .tickets status --short
+git -C .tickets add <id>.org
+git -C .tickets commit -m "Record ticket progress"
+#+end_src
+
+The wrapper uses the active =tko= on =PATH=, including a mise shim. Check the
+selected executable and available typed-ticket options with:
+
+#+begin_src sh
+command -v tko
+bin/tickets create --help
+#+end_src
+
+From another working directory or implementation worktree, invoke the primary
+checkout's =bin/tickets= by absolute path. This avoids tko's ancestor search
+selecting a different repository or creating another ticket store. Plain
+=tko= also discovers =.tickets/= from the primary checkout, but the wrapper
+checks that the mount is valid before allowing writes.
+
+* Mounting
+
+The initial chart created the orphan branch and worktree with:
+
+#+begin_src sh
+git worktree add --orphan -b codex/tickets .tickets
+#+end_src
+
+Do not repeat that command for an existing ticket history. If the mount is
+absent but the local branch exists, reattach it from the primary checkout:
+
+#+begin_src sh
+git worktree add .tickets codex/tickets
+#+end_src
+
+In another clone, fetch the ticket branch from its published remote before
+mounting it. Publication is explicit; this wrapper does not push anything.
+An existing unexpected file, directory, or worktree must be inspected, never
+overwritten by bootstrap. Do not use =git clean -ffdx= around the ticket mount.
+
+* Conventions
+
+- Use =tko= through the wrapper for IDs, status, parent membership,
+  dependencies, tags, and lint. Edit substantial Org bodies directly.
+- Tickets must be understandable without conversation history. Task-family
+  tickets use Description, Scope, Acceptance Criteria, and Notes; research
+  tickets use Question and Findings, with their investigation plan in Notes.
+  Semantic headings belong at level two.
+- Give each child a durable review surface and work bounded to one session.
+- Use =--parent= for membership and =dep= for actual prerequisites. A child
+  never depends on its own epic. The epic may depend on its closing children.
+- Claim a ready child with =start= before implementation. Close by evidence,
+  not by intent; charting alone leaves implementation children open.
+- Include exact commits, selected Nixpkgs source and resolved revision,
+  commands, results, remaining gaps, and cleanup in evidence notes.
+- Keep concise textual evidence on the ticket branch. Large logs, screenshots,
+  ISOs, disks, and ad-hoc smoke scripts stay in ignored =.ephemera/= or a
+  clearly identified external scratch directory; link them from the ticket.
+- Record only public fixture credentials, never secrets.
+- Parallel workers use separate implementation worktrees and share this one
+  ticket store. Coordinate edits to the same ticket; there is no automatic
+  conflict resolution or remote synchronization.
+- No PR train is implied by an epic. Name an integration branch only if a
+  later implementation plan needs one, and obtain review before merging PRs.

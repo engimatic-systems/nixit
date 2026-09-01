@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(CDPATH='' cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+tickets_dir="$repo_root/.tickets"
+
+die() {
+  printf 'tickets: %s\n' "$*" >&2
+  exit 1
+}
+
+[[ -f "$tickets_dir/.git" ]] ||
+  die "missing linked ticket worktree at $tickets_dir; see docs/tickets.org"
+
+ticket_root=$(git -C "$tickets_dir" rev-parse --show-toplevel) ||
+  die 'cannot resolve the ticket worktree'
+[[ "$ticket_root" == "$tickets_dir" ]] || die 'unexpected ticket worktree root'
+
+repo_git=$(git -C "$repo_root" rev-parse --path-format=absolute --git-common-dir)
+ticket_git=$(git -C "$tickets_dir" rev-parse --path-format=absolute --git-common-dir)
+[[ "$ticket_git" == "$repo_git" ]] || die 'ticket worktree belongs to another repository'
+
+ticket_branch=$(git -C "$tickets_dir" symbolic-ref --quiet --short HEAD) ||
+  die 'ticket worktree must be on codex/tickets'
+[[ "$ticket_branch" == codex/tickets ]] || die 'ticket worktree must be on codex/tickets'
+
+command -v tko >/dev/null 2>&1 || die 'tko is required on PATH'
+
+# Keep ticket IDs rooted in this checkout, independent of the caller's directory.
+cd -- "$repo_root"
+export TICKETS_DIR="$tickets_dir"
+exec tko "$@"
