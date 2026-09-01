@@ -123,15 +123,16 @@ Rules:
 
 If =CONFIG_DIR= is unset:
 
-- include repo default config tree at:
+- include the entire repo =examples/= tree, including:
   =/etc/nixos-installer/configs/minimal/=
+  =/etc/nixos-installer/configs/minimal-i3/=
 
 If =CONFIG_DIR= is set:
 
 - copy contents of =CONFIG_DIR= into:
   =/etc/nixos-installer/configs/=
-- do not also include repo default =minimal= config unless the caller included
-  it in =CONFIG_DIR=
+- replace the repo default tree; do not also include =minimal= or =minimal-i3=
+  unless the caller included them in =CONFIG_DIR=
 - preserve directory structure
 - do not template, rewrite, validate, or interpret caller configs
 
@@ -159,23 +160,59 @@ ISO tree:
   experiment/configuration.nix
 #+end_example
 
-* Minimal Config Contract
+* Example Config Contract
 
-The repo default minimal config exists for smoke testing and day-1 bootstrap.
+The repo examples exist for smoke testing and day-1 bootstrap. Each directory
+is a complete NixOS configuration tree that can be copied alone to
+=/mnt/etc/nixos=. It may optionally import a =hardware-configuration.nix= in
+the same directory, but it must not import a sibling example or another repo
+file. The install helper preserves a supplied hardware config or generates one
+after copying the selected directory.
 
-It should provide:
+Both examples assume a disposable VM with BIOS boot and install GRUB to
+=/dev/vda=. They provide:
 
+- BIOS/GRUB target =/dev/vda=
 - hostname =nixos=
 - DHCP networking
 - OpenSSH enabled
+- guest firewall access for SSH
 - user =nixos= with password =nixos=
-- no root password
+- normal-user membership in =wheel= and sudo access
+- locked root account and denied root SSH login
 - no SSH keys
 - no secrets
 - no Codex
 - no mise
-- small basic package set, e.g. =git=, =curl=, =vim=
 - =system.stateVersion=
+
+The =minimal= example also has a small basic package set: =git=, =curl=, and
+=vim=. It is the headless bootstrap choice.
+
+The =minimal-i3= example additionally provides:
+
+- xrdp using its Xorg backend, without a local display manager or console
+  login prerequisite
+- =services.xrdp.openFirewall = false=, leaving guest port 3389 unavailable
+  except through an operator-created SSH tunnel
+- xrdp root login denied and per-user =~/startwm.sh= overrides disabled
+- a generated session wrapper that requires PAM's =XDG_RUNTIME_DIR=, uses the
+  shared user D-Bus, imports the X11/i3 environment into the systemd user
+  manager, and then execs i3 with a declared config
+- xrdp session =Policy=UB= with disconnected sessions retained indefinitely;
+  reconnect selection therefore requires the same user and bits per pixel
+- an explicit i3 config with no first-run prompt, =xterm=, a =dmenu= launcher,
+  an i3bar using =i3status=, and usable DejaVu fonts
+
+The intended route from the operator machine is:
+
+#+begin_src sh
+ssh -N -L 127.0.0.1:13389:127.0.0.1:3389 nixos@<installed-host>
+#+end_src
+
+An RDP client connects to =127.0.0.1:13389= as =nixos:nixos=. The RDP desktop
+is a separate session rather than a console mirror. Disconnecting retains it;
+logging out ends it. Reconnect with the same normal user and color depth.
 
 Operators should bring their own config for real use.
 
@@ -202,6 +239,13 @@ Required environment:
 #+begin_src sh
 DISK=/dev/vda
 CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix
+#+end_src
+
+To install the remote-i3 fixture, select it explicitly instead:
+
+#+begin_src sh
+DISK=/dev/vda
+CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal-i3/configuration.nix
 #+end_src
 
 Rules:
@@ -252,6 +296,9 @@ A reasonable smoke:
 - reboot without ISO
 - verify installed system boots
 - SSH into installed system as =nixos=
+- when =minimal-i3= is selected, tunnel RDP through SSH and use a real client
+  to prove rendered i3/application pixels, delivered input, disconnect, and
+  same-session reconnect with exact surviving Xorg/i3/application PIDs
 
 VM tooling specifics are operator-owned.
 
@@ -271,6 +318,8 @@ hosts/
     install-nixos-vm.sh
 examples/
   minimal/
+    configuration.nix
+  minimal-i3/
     configuration.nix
 docs/
   smoke.org

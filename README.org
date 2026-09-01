@@ -137,19 +137,25 @@ bin/build-live-installer-iso
 CONFIG_DIR=./my-configs bin/build-live-installer-iso
 #+end_src
 
-When =CONFIG_DIR= is unset, the repo default =examples/minimal/= tree is
-available in the ISO at =/etc/nixos-installer/configs/minimal/=. When
-=CONFIG_DIR= is set, its contents are raw-copied into
-=/etc/nixos-installer/configs/= and the default =minimal= tree is not included
-unless the caller supplied it.
+When =CONFIG_DIR= is unset, the entire repo =examples/= tree is embedded. The
+ISO therefore contains both:
+
+#+begin_example
+/etc/nixos-installer/configs/minimal/configuration.nix
+/etc/nixos-installer/configs/minimal-i3/configuration.nix
+#+end_example
+
+When =CONFIG_DIR= is set, its contents replace that default tree: they are
+raw-copied into =/etc/nixos-installer/configs/=, and neither repo example is
+included unless the caller supplied it in =CONFIG_DIR=.
 
 Caller configs are bring-your-own NixOS configuration trees. The build does not
 template, rewrite, validate, or interpret them beyond ordinary Nix build
 failures, and operators use them at their own risk.
 
-The default =minimal= tree is for smoke testing and day-1 bootstrap. It assumes
-a target VM disk at =/dev/vda= for GRUB; real installs should bring an explicit
-operator-owned config.
+Both examples are public fixtures for smoke testing and day-1 bootstrap. They
+assume BIOS boot with GRUB installed to a disposable target VM disk at
+=/dev/vda=. Real installs should bring an explicit operator-owned config.
 
 Pass =nix-build= flags after the optional destination:
 
@@ -177,6 +183,12 @@ Boot the ISO, attach a target disk, SSH into the live system, and run:
 DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal/configuration.nix install-nixos-vm
 #+end_src
 
+Select the remote-i3 example by changing only the explicit configuration path:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal-i3/configuration.nix install-nixos-vm
+#+end_src
+
 =DISK= is destructive. The helper partitions, formats, and mounts that disk,
 copies the directory containing =CONFIGURATION_NIX= to =/mnt/etc/nixos=,
 generates hardware config only when the copied tree lacks
@@ -184,6 +196,43 @@ generates hardware config only when the copied tree lacks
 
 Installer configs must explicitly define their desired login and root-account
 policy. The helper does not prompt for, generate, or manage root passwords.
+
+Both repo examples enable DHCP and password SSH for the installed =nixos= user:
+
+| user  | password | policy                                      |
+|-------+----------+---------------------------------------------|
+| nixos | nixos    | normal user; member of =wheel=; may use sudo |
+| root  | none     | locked; direct SSH login denied              |
+
+The live installer's separate =root:nixos= login exists only before
+installation. It is not carried into either installed example.
+
+* Remote i3 Example
+
+=minimal-i3= adds an xrdp-created Xorg/i3 session to the installed system; it
+does not turn the live installer into a GUI. Its explicit i3 config opens an
+=xterm=, provides =Mod4+Return= for another terminal, =Mod4+d= for =dmenu=,
+=Mod4+Shift+q= to close a window, =Mod4+Shift+e= to log out, and an i3status
+bar. DejaVu fonts are installed.
+
+The guest firewall opens only SSH. xrdp listens on guest port 3389, but that
+port is not opened in the firewall. From the operator machine, carry RDP over
+an SSH loopback tunnel instead:
+
+#+begin_src sh
+ssh -N -L 127.0.0.1:13389:127.0.0.1:3389 nixos@<installed-host>
+#+end_src
+
+Connect a real RDP client to =127.0.0.1:13389= as =nixos:nixos=. This is a
+separate remote X session, not a mirror of a console login, and it needs no
+prior console session. Disconnecting the client leaves the session running;
+logging out with =Mod4+Shift+e= ends it. For reconnect, use the same user and
+the same color depth as the first connection. The proven smoke used 24 bits
+per pixel; xrdp's =Policy=UB= selects a session by user and bits per pixel.
+
+Provider-specific SSH addressing, client invocation, VM lifecycle, and
+teardown remain operator-owned. The provider-neutral GUI evidence procedure is
+in =docs/smoke.org=.
 
 * Non-Goals
 
