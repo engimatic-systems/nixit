@@ -1,0 +1,208 @@
+#+TITLE: Orchestrator Handoff: Minimal i3/RDP VM
+#+DATE: 2026-09-01
+
+* Mission
+
+Take over orchestration of =nix-p7zp=, Minimal i3/RDP VM for GUI development.
+Deliver an installable =examples/minimal-i3/= configuration and prove its
+desktop through an actual headless RDP client after a real ISO installation
+and disk-only cold boot.
+
+Begin with the ready research child, =nix-72d3=. The dependency environment
+is prepared; guest-session research has not started. Do not infer successful
+RDP authentication, i3 rendering, guest input, or reconnect from the existing
+tool-readiness checks.
+
+* Source Of Truth
+
+- Primary checkout: =/home/rosin/nixit=.
+- Read =AGENTS.md= and =docs/tickets.org= before making changes.
+- Epic and children live in =/home/rosin/nixit/.tickets/= on the orphan
+  =codex/tickets= branch. Ticket bodies contain the detailed contracts.
+- Read =spec.org=, =README.org=, and =docs/smoke.org= for current product
+  behavior. Root =PLAN.org= and =WORKER_PROMPT.org= describe the old initial
+  PR train; their branch names and sequencing do not govern this epic.
+- This handoff is a starting snapshot. Recheck live ticket/worktree state
+  before claiming work and use newer ticket findings when they exist.
+
+* Starting State
+
+| Surface | Branch | Commit / state |
+|---------+--------+----------------|
+| Merged baseline | main | 7ea9db46e853be6be433f4c955a4b5be40934a4b |
+| Ticket workflow | codex/gui-epic-setup | 4d04c19c9d0edd868790df53c0569cc1f3803827 |
+| Smoke dependencies | codex/rdp-smoke-deps | 562dbdc967578b5336d40ca612ef13a14fafc92c |
+| Ticket graph | codex/tickets | Local orphan history mounted at .tickets |
+
+The primary checkout is clean on =codex/rdp-smoke-deps=. That branch includes
+the workflow commit and is the implementation starting point. The workflow
+and dependency commits are local and unpublished; do not start from =main=
+alone and lose them. The ticket worktree was also clean before this handoff
+was added. No epic PR was opened during preparation.
+
+Leave the unrelated detached worktree at
+=/home/rosin/working/sys-on2j/001-nixit-dogfood= alone.
+
+* Ticket Order And Gates
+
+| Ticket | Type | Prerequisite | Durable result |
+|--------+------+--------------+----------------|
+| nix-72d3 | research | none | Proven i3/xrdp startup and headless client procedure |
+| nix-l2t3 | feature | nix-72d3 | Self-contained GUI example, docs, focused checks |
+| nix-b1u6 | task | nix-l2t3 | Exact shipped-ISO installation and RDP smoke evidence |
+
+All three children and the epic are open. Only =nix-72d3= is ready. The epic
+depends on all three children and must not be closed by planning or by an
+authentication-only check.
+
+Research gate: record the minimal working configuration, session startup,
+D-Bus/runtime requirements, and reconnect behavior in =Findings=. A scratch
+prototype is permitted. A real RDP client must render i3 and a terminal,
+deliver input with a guest-observable result, and reconnect to the same
+running application. Close research with a reason only after its required
+evidence is complete.
+
+Implementation gate: ship =examples/minimal-i3/= with explicit i3 config,
+terminal, launcher, status bar, fonts, and xrdp. The installer copies only
+the selected configuration's directory, so the tree cannot import files
+from =../minimal/= or elsewhere in the repo. Verify evaluation after copying
+the tree alone. Preserve the headless example and update README, spec, and
+smoke instructions for both embedded examples.
+
+Runtime gate: build the committed implementation, verify the ISO checksum,
+install it with stdin closed and no pseudo-terminal, require exit zero, then
+cold-boot without the ISO. Verify SSH/sudo/root policy, client-rendered GUI
+pixels, keyboard and mouse delivery, and same-session reconnect. Capture
+screenshots on the client display, correlate input with a guest result, and
+record the original terminal PID/session surviving reconnect. Guest-only
+screenshots, an open port, or successful credentials do not prove this gate.
+
+* Immediate Start
+
+Run these read-only checks from the primary checkout:
+
+#+begin_src sh
+cd /home/rosin/nixit
+git status --short --branch
+git -C .tickets status --short --branch
+git worktree list
+bin/tickets help
+bin/tickets show --full nix-p7zp
+bin/tickets ready
+bin/tickets show --full nix-72d3
+#+end_src
+
+If research remains unclaimed and ready, claim it and create a dedicated
+worktree. Inspect and reuse existing matching branches/worktrees if resuming;
+do not force-replace them. The following is the fresh-start command shape:
+
+#+begin_src sh
+cd /home/rosin/nixit
+bin/tickets start nix-72d3
+mkdir -p .ephemera/worktrees
+git worktree add -b codex/nix-72d3-session-prototype \
+  .ephemera/worktrees/nix-72d3 \
+  562dbdc967578b5336d40ca612ef13a14fafc92c
+cd .ephemera/worktrees/nix-72d3
+nix develop .#rdp-smoke
+printf 'NIXPKGS_PATH=%s\n' "$NIXPKGS_PATH"
+#+end_src
+
+From worker directories, always invoke
+=/home/rosin/nixit/bin/tickets= by absolute path. The wrapper beside a linked
+implementation checkout would expect its own =.tickets/= mount; do not create
+one. The primary wrapper validates the canonical worktree and selects it
+explicitly. Keep the primary checkout on a branch containing that wrapper.
+
+Use the active mise-provided tko. Its typed research commands are available
+even though =--version= reported 0.1.1 at preparation time. The older
+=~/.local/bin/tko= lacked typed commands; do not prepend it to PATH.
+
+* Prepared Environment And Evidence
+
+=nix develop .#rdp-smoke= declares QEMU/qemu-img, FreeRDP, Xvfb/xvfb-run,
+xdotool, ImageMagick, OpenSSH, coreutils, and util-linux on =x86_64-linux=.
+The shell starts no VM or server and installs nothing into the guest image.
+Nix and access to host KVM remain prerequisites; recheck them at execution.
+
+The flake pins Nixpkgs to
+=5dfba6236110080a54247d6460bc2ff5dda939cc= and exports its source through
+=NIXPKGS_PATH=. Here that path resolved to
+=/nix/store/6bf80a7m11xpxdh0qi5k83721lqxk11s-source=. Use the environment's
+actual path, not this host-specific store path as a portable constant.
+The Git source reports =26.05pre-git=; the lock revision is the identity to
+record, rather than a channel-generated version label.
+
+Completed checks: flake evaluation, dependency realization, preflight, QEMU
+10.2.4 and FreeRDP 3.30.0 startup, Xvfb geometry/pointer movement, and an
+ImageMagick capture of the empty local virtual display. Artifacts:
+=/home/rosin/nixit/.ephemera/rdp-deps-20260901/=. Use =-noreset= when running
+short-lived clients under Xvfb; otherwise the server may reset between commands.
+
+The earlier successful headless minimal ISO smoke is recorded at
+=/home/rosin/sys/.ephemera/nixit-issue13-smoke-20260901/=. Existing ISO files
+under =.ephemera/iso/= are that older headless image, not GUI acceptance
+artifacts. Do not rerun completed dependency checks without a concrete reason;
+the next useful experiment is a guest i3/xrdp session.
+
+* Access And Product Boundaries
+
+Use SSH for administration and tunnel RDP to the guest's port 3389. Keep the
+guest RDP firewall port closed; bind host-side forwards to loopback. Example
+after an installed guest is reachable:
+
+#+begin_src sh
+ssh -N -L 127.0.0.1:13389:127.0.0.1:3389 nixos@<vm-host>
+#+end_src
+
+An RDP client connects to =127.0.0.1:13389=. Adapt SSH addressing for the
+actual provider. RDP starts its own session without a prior console login;
+console-session mirroring is not required. VM console access remains useful
+for boot/recovery and is operator-owned.
+
+Public fixture credentials: live ISO users =nixos= and =root= use password
+=nixos=; the installed minimal user is =nixos= with password =nixos=, sudo
+uses that user's password, and installed root is locked. Preserve this policy
+for the new example. =--no-root-password= suppresses the installer prompt;
+it does not enable passwordless root login. The example assumes BIOS/GRUB
+and =/dev/vda=; observe the disposable target disk before invoking the helper.
+
+The builder already embeds all of =examples/= by default. A supplied
+=CONFIG_DIR= replaces that tree. Keep the live installer itself headless.
+GUI app/toolchain provisioning, GPU-performance certification, audio,
+clipboard/drive sharing, Wayland, and a full desktop suite are outside this
+epic's acceptance requirements.
+
+* Orchestration And Bookkeeping
+
+The user authorized ad-hoc VM/client tooling and a repository flake for
+declared dependencies. Mechanical tasks may be delegated to lower-powered
+Luna subagents. Keep tightly coupled session debugging with the orchestrator
+or a suitably capable worker; delegate bounded independent work with explicit
+file ownership, expected evidence, and a reminder not to revert others' edits.
+Use subagents for subtasks; creating new user-owned tasks requires a separate
+request.
+
+Run one child at a time along the dependency chain, with one implementation
+worktree per active child. Carry forward durable dependency/config changes;
+do not require later workers to copy unrecorded mutations out of a test guest.
+Each worker reports changed paths/commits, checks and results, artifact paths,
+remaining uncertainty, and teardown. The orchestrator reviews that evidence,
+updates Findings or notes, and closes only satisfied tickets.
+
+Use tko for metadata/status/dependencies, manual readable Org edits for
+substantial evidence, and =bin/tickets lint= before ticket commits. Commit
+ticket changes only on =codex/tickets=, separately from implementation. Never
+merge the orphan branch into code history. Keep large logs, screenshots,
+disks, and ad-hoc lifecycle scripts untracked; the flake and its lock file
+are the authorized durable dependency surface.
+
+No PR train has been selected. Present code for review with the unpublished
+workflow/dependency prerequisites accounted for. Do not merge PRs without the
+operator's instruction. Record newly discovered operator-facing decisions
+explicitly instead of expanding the agreed scope silently.
+
+At each stopping point, record the active ticket, exact branch/worktree,
+last completed observation, next concrete action, and any remaining processes.
+Shut down disposable guests, RDP clients, tunnels, and virtual displays when
+their tests finish. Close the epic only after all three child gates pass.

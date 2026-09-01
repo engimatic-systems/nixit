@@ -86,6 +86,10 @@ before implementation rather than silently expanding this scope.
 
 ** Notes
 
+Orchestrator entry: [[file:handoffs/nix-p7zp.org][Minimal i3/RDP VM handoff]]. It records the
+starting branches, ready ticket, dependency-readiness evidence, and execution
+gates. Recheck live ticket status when resuming.
+
 The previous minimal smoke's detailed artifacts remain in
 =/home/rosin/sys/.ephemera/nixit-issue13-smoke-20260901/=. New ticket state and
 concise evidence belong to this orphan ticket branch, not to the code tree.
