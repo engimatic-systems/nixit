@@ -45,10 +45,11 @@ GPU/desktop-suite additions belong in this change.
 
 ** Expected Use
 
-Build from the repo, recording the resolved Nixpkgs revision:
+Build from the repo with the development shell's locked Nixpkgs source,
+recording the revision from =flake.lock=:
 
 #+begin_src sh
-NIXPKGS_PATH=channel:nixos-26.05 bin/build-live-installer-iso .ephemera/gui/iso
+nix develop .#rdp-smoke --command bin/build-live-installer-iso .ephemera/gui/iso
 #+end_src
 
 Inside a live installer with an intentionally disposable =/dev/vda=:

@@ -15,8 +15,9 @@
 ** Question
 
 What minimal NixOS configuration and session startup reliably provide i3
-through xrdp on =channel:nixos-26.05=, including input, rendered application
-windows, and reconnect, when the RDP client itself runs headlessly?
+through xrdp on the NixOS 26.05 source pinned by =flake.lock=, including input,
+rendered application windows, and reconnect, when the RDP client itself runs
+headlessly?
 
 ** Description
 
@@ -24,14 +25,20 @@ Resolve the technical integration before shipping the GUI example. Produce
 findings and a reproducible scratch procedure, not a permanent test harness
 or an installed configuration committed to main.
 
+The user also authorized a repository Nix flake to carry the required smoke
+dependencies. Its declarations and lock file are durable code; VM lifecycle
+scripts, guest prototypes, and generated artifacts remain scratch work.
+
 ** Notes
 
 *** Investigation Plan
 
 Use an ad-hoc disposable QEMU/KVM guest and a real RDP client such as FreeRDP
-under Xvfb. Obtain client/display tools through an explicit temporary Nix
-environment, without installing host packages or adding provisioning code.
-Start from the repo's minimal user, disk, and SSH assumptions.
+under Xvfb. Enter =nix develop .#rdp-smoke= for declared client/display tools,
+without installing host packages or adding provisioning code. The shell's
+=NIXPKGS_PATH= selects its locked source for the existing build commands.
+Start from the repo's minimal user, disk, and SSH assumptions. Add further
+dependencies to the shell only as the prototype establishes a concrete need.
 
 Determine the exact Xorg/xorgxrdp packages and i3 startup command, D-Bus/runtime
 environment requirements, and a terminal/launcher/status-bar set. Document
@@ -49,6 +56,9 @@ work. A scratch prototype does not replace the later shipped-ISO smoke.
 
 - Record the explicit Nixpkgs source and resolved revision, minimal config
   fragment, client/tool versions, commands, and required session environment.
+- Record the flake/lock revision and verify that the declared tools can run
+  in the headless development shell; distinguish dependency readiness from
+  a successful guest RDP session.
 - Authenticate with a real RDP client, capture its rendered i3/terminal
   pixels, and deliver input through the client that produces a verifiable
   result in the guest. Authentication-only and guest-only screenshots do
@@ -62,9 +72,46 @@ work. A scratch prototype does not replace the later shipped-ISO smoke.
 - Shut down the disposable guest/client/display processes and record
   artifact locations and cleanup. Preserve concise findings in this ticket.
 
+*** [2026-09-01 Tue 19:18Z] Declared smoke dependencies
+
+The user authorized a repository flake for this ticket's missing tool
+capabilities. Added =flake.nix= and =flake.lock=, plus shell usage and boundary
+documentation, in commit =562dbdc967578b5336d40ca612ef13a14fafc92c= on
+=codex/rdp-smoke-deps=. This branch includes the ticket-workflow setup; use a
+base containing this commit when creating the research worktree.
+
+#+begin_src sh
+nix develop .#rdp-smoke
+#+end_src
+
+- Declares QEMU/qemu-img, FreeRDP, Xvfb/xvfb-run, xdotool, ImageMagick,
+  OpenSSH, coreutils, and util-linux for =x86_64-linux=.
+- Pins Nixpkgs to =5dfba6236110080a54247d6460bc2ff5dda939cc=, the same
+  revision as the previous minimal ISO smoke. The shell exposes it through
+  =NIXPKGS_PATH=/nix/store/6bf80a7m11xpxdh0qi5k83721lqxk11s-source= here.
+  This Git source reports =lib.version= as =26.05pre-git=; record the locked
+  revision rather than assuming a channel-generated version label.
+- =nix flake check --no-build= passed. Entering the declared shell and
+  =bin/preflight= passed; tool paths resolved to the declared Nix store
+  packages. Observed QEMU 10.2.4 and FreeRDP 3.30.0.
+- In Xvfb at 1024x768, pointer movement through xdotool, FreeRDP version/help,
+  and ImageMagick framebuffer capture passed. The capture is the empty local
+  virtual display, not an i3 desktop or a remote RDP session.
+- Short-lived X clients caused Xvfb to reset the pointer between commands;
+  using =-noreset= made the scripted input check stable. Carry that setting
+  into the ad-hoc smoke procedure where appropriate.
+- Check script, initial/final logs, client help, and capture are untracked at
+  =/home/rosin/nixit/.ephemera/rdp-deps-20260901/=. The final check printed
+  =XVFB_INPUT_AND_CAPTURE_PASS= and =DEPENDENCY_SHELL_CHECKS_PASS=.
+- The check's =xvfb-run= process completed successfully and cleaned up its
+  virtual display. No VM or RDP server was started; no host package profile
+  or system service was changed.
+
 ** Findings
 
-Not started. No configuration or RDP session has been validated yet.
+Dependency readiness is verified in the note above. Guest-session research
+has not started: no i3 configuration, RDP authentication, remote rendering,
+input delivery to a guest, or reconnect behavior has been validated yet.
 
 ** References
 
@@ -73,5 +120,5 @@ Nixpkgs =nixos/modules/services/networking/xrdp.nix= and
 =nixos/modules/services/x11/window-managers/i3.nix= modules.
 
 The earlier host check found QEMU/KVM and Nix, but no FreeRDP or Xvfb on PATH.
-Recheck capabilities when starting; do not assume those tools are installed.
+Use the declared shell instead of assuming globally installed client tools.
 Implementation handoff goes to Installable GUI example (nix-l2t3).

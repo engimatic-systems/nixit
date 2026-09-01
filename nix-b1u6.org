@@ -20,9 +20,10 @@ runtime release gate; the earlier scratch prototype is not sufficient.
 
 ** Scope
 
-Own the concise evidence and disposition in this ticket. Use ad-hoc QEMU/KVM
-lifecycle and headless FreeRDP/Xvfb tooling outside tracked implementation
-files. Resolve the client/session mechanics from Session prototype (nix-72d3).
+Own the concise evidence and disposition in this ticket. Use the declared
+=nix develop .#rdp-smoke= dependencies with ad-hoc QEMU/KVM lifecycle and
+headless FreeRDP/Xvfb orchestration outside tracked implementation files.
+Resolve the client/session mechanics from Session prototype (nix-72d3).
 Keep disks, ISO files, screenshots, and full logs untracked and link their
 paths and relevant checksums from the evidence.
 
@@ -60,9 +61,9 @@ be used as proof that the shipped config works.
 
 ** Notes
 
-Use =NIXPKGS_PATH=channel:nixos-26.05= explicitly unless the implementation
-records a reviewed source change. Prefer the same resolved source for the
-image and guest install. The exact command shape is documented in
+The development shell sets =NIXPKGS_PATH= to its locked NixOS 26.05 source.
+Record that path and the revision from =flake.lock=; keep the image and guest
+install on the same resolved source. The exact command shape is documented in
 Installable GUI example (nix-l2t3) and =docs/smoke.org=.
 
 Evidence should explain what actually ran, including any temporary dependency

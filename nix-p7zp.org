@@ -24,8 +24,9 @@ includes the unattended install fix and a successful headless minimal smoke.
 ** Scope
 
 In scope: a self-contained =examples/minimal-i3/= tree, its operator docs,
-and evidence from an ISO install and disk-only cold boot. Preserve the
-existing =examples/minimal/= behavior and live installer workflow.
+an optional locked Nix development shell for smoke dependencies, and evidence
+from an ISO install and disk-only cold boot. Preserve the existing
+=examples/minimal/= behavior and live installer workflow.
 
 The GUI baseline is X11/i3, a terminal, launcher, status bar, usable fonts,
 and xrdp. Start RDP sessions without a local console login. The operator can
@@ -66,7 +67,8 @@ No integration branch or PR train is required for this small epic.
 - The original headless minimal example remains usable and its tests pass.
 - Ticket evidence names exact commits, Nixpkgs source/revision, ISO checksum,
   commands, observations, artifact paths, and teardown. Large artifacts and
-  ad-hoc VM/client tooling remain untracked.
+  ad-hoc VM/client orchestration remain untracked; dependency declarations
+  and their lock file may be tracked in the repository flake.
 
 ** Not Yet Specified
 
@@ -113,3 +115,11 @@ concise evidence belong to this orphan ticket branch, not to the code tree.
   do not prepend it ahead of the mise shim.
 - Both histories are local; publication and implementation remain separate
   next actions. No host package or service changes were made.
+
+*** [2026-09-01 Tue 19:18Z] Repository smoke dependencies authorized
+
+The user authorized a Nix flake to carry missing dependencies for Session
+prototype (nix-72d3). Its =rdp-smoke= shell and lock file are now implemented
+on =codex/rdp-smoke-deps=; the research ticket records the exact commit and
+dependency-readiness evidence. The GUI prototype and shipped-ISO smoke remain
+open. This adds dependency declarations, not VM lifecycle or host provisioning.
