@@ -1,0 +1,115 @@
+:PROPERTIES:
+:TKO_ID: nix-p7zp
+:TKO_STATUS: open
+:TKO_DEPS: [nix-72d3, nix-l2t3, nix-b1u6]
+:TKO_LINKS: []
+:TKO_CREATED: 2026-09-01T19:01:14Z
+:TKO_TYPE: epic
+:TKO_PRIORITY: 2
+:TKO_TAGS: [gui, rdp]
+:END:
+
+* Minimal i3/RDP VM for GUI development
+
+** Description
+
+Add a small, installable NixOS GUI sandbox accessed through i3 over RDP.
+Keep SSH for administration and builds. Prove the experience using a real RDP
+client in a virtual display, without requiring a physical monitor.
+
+This epic charts work only. No GUI configuration or RDP smoke has been
+implemented by creating these tickets. Baseline: main at 7ea9db4, which
+includes the unattended install fix and a successful headless minimal smoke.
+
+** Scope
+
+In scope: a self-contained =examples/minimal-i3/= tree, its operator docs,
+and evidence from an ISO install and disk-only cold boot. Preserve the
+existing =examples/minimal/= behavior and live installer workflow.
+
+The GUI baseline is X11/i3, a terminal, launcher, status bar, usable fonts,
+and xrdp. Start RDP sessions without a local console login. The operator can
+retain VM console access for boot and recovery; RDP need not mirror it.
+
+Retain the minimal example's documented bootstrap user and locked root
+account. Use SSH tunneling for RDP without opening another guest firewall
+port. This is a disposable development fixture, not a production identity
+or secrets policy.
+
+Out of scope: VM lifecycle tooling, host package installation, secrets or
+agent toolchain provisioning, GPU acceleration/performance certification,
+audio, clipboard/drive sharing, Wayland, and a full desktop suite.
+
+** Work Order
+
+1. Session prototype (nix-72d3): establish the smallest working i3/xrdp
+   startup and a headless client procedure on the selected Nixpkgs source.
+2. Installable GUI example (nix-l2t3): ship the self-contained tree and its
+   configuration/access contract using the prototype findings.
+3. Shipped-ISO smoke (nix-b1u6): install that exact revision, cold-boot, and
+   verify rendering, input, and reconnect through RDP.
+
+The first child is the entry point. Dependency edges encode that order; the
+epic closes only after all three children. Use one implementation worktree
+per active child and invoke the primary checkout's =bin/tickets= there.
+No integration branch or PR train is required for this small epic.
+
+** Acceptance Criteria
+
+- The documented helper invocation installs =minimal-i3= with stdin closed
+  and exits zero; the installed disk boots with the ISO detached.
+- SSH works, root remains locked, and RDP starts an authenticated i3 session
+  using the example's documented normal-user login.
+- A real RDP client renders a terminal and delivers keyboard/mouse input;
+  client-side screenshots and a guest-side observable result prove this.
+- Disconnect/reconnect preserves the same running application and session.
+- The original headless minimal example remains usable and its tests pass.
+- Ticket evidence names exact commits, Nixpkgs source/revision, ISO checksum,
+  commands, observations, artifact paths, and teardown. Large artifacts and
+  ad-hoc VM/client tooling remain untracked.
+
+** Not Yet Specified
+
+No unbounded questions remain in this initial scope. The unresolved session
+startup, runtime environment, and reconnect behavior are precisely scoped in
+Session prototype (nix-72d3). App/toolkit-specific requirements belong to
+later work, outside this epic.
+
+** Decisions
+
+No decision tickets have been resolved during charting. The user has already
+selected i3 + RDP, SSH administration, and functional headless validation.
+New operator-facing choices found by the prototype must be made explicit
+before implementation rather than silently expanding this scope.
+
+** Notes
+
+The previous minimal smoke's detailed artifacts remain in
+=/home/rosin/sys/.ephemera/nixit-issue13-smoke-20260901/=. New ticket state and
+concise evidence belong to this orphan ticket branch, not to the code tree.
+
+*** [2026-09-01 Tue 19:08Z] Chart and ticket store setup
+
+- Charted three open children; Session prototype (nix-72d3) is the sole
+  ready entry. No GUI implementation or RDP smoke was started.
+- Workflow commit: =4d04c19c9d0edd868790df53c0569cc1f3803827= on
+  =codex/gui-epic-setup=. It adds =bin/tickets=, =docs/tickets.org=, the
+  tracked ticket-mount ignore rule, and updated agent instructions.
+- Ticket files are mounted at =/home/rosin/nixit/.tickets/= on the orphan
+  =codex/tickets= branch. The local =.git/info/exclude= rule also protects
+  the mount when visiting older implementation branches.
+- =bin/tickets lint= passed without warnings. =ready= reports only the
+  research child; =blocked= reports the implementation, smoke, and epic.
+- Bash syntax, ShellCheck 0.11.0, and =git diff --check= passed for the glue.
+- Ad-hoc wrapper checks passed for missing/ordinary ticket directories,
+  wrong branch, another repository's linked worktree, paths/arguments with
+  spaces, caller-directory independence, and tko exit-status propagation.
+  Fixtures are at =/tmp/nixit-tickets-check.9cVJ3F/=.
+- A real invocation from =/tmp= with an unrelated =TICKETS_DIR= still
+  selected this epic's store through the wrapper.
+- Use the active mise tko executable. It supports typed research and
+  =--question=, although its embedded =--version= currently reports 0.1.1.
+  The older standalone =~/.local/bin/tko= lacks those typed commands;
+  do not prepend it ahead of the mise shim.
+- Both histories are local; publication and implementation remain separate
+  next actions. No host package or service changes were made.

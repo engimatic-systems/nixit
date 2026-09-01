@@ -1,0 +1,71 @@
+:PROPERTIES:
+:TKO_ID: nix-b1u6
+:TKO_STATUS: open
+:TKO_DEPS: [nix-l2t3]
+:TKO_LINKS: []
+:TKO_CREATED: 2026-09-01T19:01:15Z
+:TKO_TYPE: task
+:TKO_PRIORITY: 2
+:TKO_PARENT: nix-p7zp
+:TKO_TAGS: [gui, rdp, smoke]
+:END:
+
+* Validate the shipped GUI ISO through headless RDP
+
+** Description
+
+Validate the exact committed =minimal-i3= example delivered by Installable
+GUI example (nix-l2t3), through a real ISO install and cold boot. This is the
+runtime release gate; the earlier scratch prototype is not sufficient.
+
+** Scope
+
+Own the concise evidence and disposition in this ticket. Use ad-hoc QEMU/KVM
+lifecycle and headless FreeRDP/Xvfb tooling outside tracked implementation
+files. Resolve the client/session mechanics from Session prototype (nix-72d3).
+Keep disks, ISO files, screenshots, and full logs untracked and link their
+paths and relevant checksums from the evidence.
+
+No changes to host packages or shared services. If the shipped example fails,
+record the failure and return a scoped fix to the implementation surface,
+then rerun the affected checks. A workaround only in the test guest cannot
+be used as proof that the shipped config works.
+
+** Acceptance Criteria
+
+- Record exact implementation commit/tree, preflight output, build command,
+  explicit Nixpkgs source/resolved revision, ISO path, and verified checksum.
+- Boot the actual ISO, verify live SSH as both documented users, inspect both
+  embedded example trees, and run missing-input helper checks before mutation.
+- Install =minimal-i3= to an observed blank disposable disk using the
+  documented helper command, stdin closed, and no pseudo-terminal. Require
+  exit zero and no password prompt.
+- Power off and cold-boot the installed disk without the ISO. Verify the
+  root filesystem comes from that disk, SSH and sudo work, root is locked,
+  and the installed config matches the shipped tree except generated hardware.
+- Tunnel RDP over SSH. Confirm the documented normal-user login starts i3
+  without a prior local console login and without opening the guest RDP port.
+- Connect a real RDP client on a headless virtual display. Capture client
+  pixels showing a terminal, deliver keyboard and mouse input through RDP,
+  and correlate it with a guest-side result such as a uniquely named marker
+  file written by a command typed into that terminal.
+- Disconnect the client without logging out, reconnect as the same user,
+  and verify the original terminal PID/session and visible contents persist.
+- Check relevant service status/logs and retained SSH reachability. Record
+  all failures or warnings with their disposition rather than treating a
+  reachable RDP port or successful authentication as a completed smoke.
+- Shut down the guest, RDP client, tunnel, and virtual display; record exit
+  statuses, retained artifact paths, and remaining gaps. Close only after all
+  functional checks pass; no GPU-performance claim is part of this result.
+
+** Notes
+
+Use =NIXPKGS_PATH=channel:nixos-26.05= explicitly unless the implementation
+records a reviewed source change. Prefer the same resolved source for the
+image and guest install. The exact command shape is documented in
+Installable GUI example (nix-l2t3) and =docs/smoke.org=.
+
+Evidence should explain what actually ran, including any temporary dependency
+environment and VM-provider choices. No permanent VM/client harness is needed
+to close this ticket. Before closing the parent epic, verify all child
+evidence exists and no required check remains outstanding.

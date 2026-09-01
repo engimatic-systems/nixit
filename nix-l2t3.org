@@ -1,0 +1,90 @@
+:PROPERTIES:
+:TKO_ID: nix-l2t3
+:TKO_STATUS: open
+:TKO_DEPS: [nix-72d3]
+:TKO_LINKS: []
+:TKO_CREATED: 2026-09-01T19:01:14Z
+:TKO_TYPE: feature
+:TKO_PRIORITY: 2
+:TKO_PARENT: nix-p7zp
+:TKO_TAGS: [gui, rdp]
+:END:
+
+* Ship the self-contained minimal-i3 installer configuration
+
+** Description
+
+Add =examples/minimal-i3/= as an installable NixOS GUI development fixture
+with i3 over RDP. Use Session prototype (nix-72d3) for proven session setup
+and client behavior, rather than assuming enabling xrdp alone starts i3.
+
+** Scope
+
+Own =examples/minimal-i3/= plus the relevant =README.org=, =spec.org=, and
+=docs/smoke.org= changes. Add focused evaluation/contract checks where they
+protect the new behavior. Keep the existing minimal example and install
+helper semantics intact.
+
+The new tree must survive being copied alone to =/mnt/etc/nixos=: no sibling
+imports of =../minimal/= or files elsewhere in the repo. Preserve supplied
+hardware config or permit the existing helper to generate it. Inherit the
+example's BIOS/GRUB =/dev/vda= assumption and document it.
+
+Provide an explicit usable i3 session, terminal, launcher, status bar, and
+fonts. Retain SSH, the documented normal-user bootstrap login, sudo, and a
+locked root account. RDP login must work without a console login; expose it
+through an SSH tunnel without opening the guest's RDP firewall port.
+
+The builder already embeds the entire =examples/= directory by default;
+document selection of the new tree and the existing =CONFIG_DIR= replacement
+semantics. Do not introduce a new build selector or turn the live installer
+itself into a GUI image.
+
+No host dependencies, VM lifecycle scripts, secrets, agent provisioning, or
+GPU/desktop-suite additions belong in this change.
+
+** Expected Use
+
+Build from the repo, recording the resolved Nixpkgs revision:
+
+#+begin_src sh
+NIXPKGS_PATH=channel:nixos-26.05 bin/build-live-installer-iso .ephemera/gui/iso
+#+end_src
+
+Inside a live installer with an intentionally disposable =/dev/vda=:
+
+#+begin_src sh
+DISK=/dev/vda CONFIGURATION_NIX=/etc/nixos-installer/configs/minimal-i3/configuration.nix install-nixos-vm < /dev/null
+#+end_src
+
+After disk-only boot, establish access from the operator's machine:
+
+#+begin_src sh
+ssh -N -L 127.0.0.1:13389:127.0.0.1:3389 nixos@<vm-host>
+#+end_src
+
+Connect an RDP client to =127.0.0.1:13389= using the documented normal-user
+login. Adapt SSH addressing for the operator's provider; no provider is part
+of the installed configuration contract.
+
+** Acceptance Criteria
+
+- The new tree evaluates with the selected Nixpkgs source both in the repo
+  and after copying just that tree to a scratch location.
+- Evaluation confirms i3/RDP configuration, documented account policy, SSH,
+  and the intended firewall behavior; existing helper tests still pass.
+- Docs explain normal-user login, SSH tunneling, the separate RDP session,
+  disconnect versus logout, explicit fixture credentials, and disk assumptions.
+- README/spec describe default embedding and custom =CONFIG_DIR= behavior
+  accurately with both =minimal= and =minimal-i3= present.
+- =docs/smoke.org= contains provider-neutral GUI acceptance steps covering
+  real client rendering/input and same-session reconnect.
+- Record the implementation commit and verification results. Full installed
+  runtime proof belongs to Shipped-ISO smoke (nix-b1u6); do not claim it here
+  unless it was actually performed.
+
+** Notes
+
+Implementation starts after Session prototype (nix-72d3) supplies findings.
+Rollback is reverting the GUI example/docs change; the existing headless
+minimal installation path must continue to work throughout.

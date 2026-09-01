@@ -1,0 +1,77 @@
+:PROPERTIES:
+:TKO_ID: nix-72d3
+:TKO_STATUS: open
+:TKO_DEPS: []
+:TKO_LINKS: []
+:TKO_CREATED: 2026-09-01T19:01:14Z
+:TKO_TYPE: research
+:TKO_PRIORITY: 2
+:TKO_PARENT: nix-p7zp
+:TKO_TAGS: [gui, rdp, research]
+:END:
+
+* Prove headless i3/RDP session startup and reconnect
+
+** Question
+
+What minimal NixOS configuration and session startup reliably provide i3
+through xrdp on =channel:nixos-26.05=, including input, rendered application
+windows, and reconnect, when the RDP client itself runs headlessly?
+
+** Description
+
+Resolve the technical integration before shipping the GUI example. Produce
+findings and a reproducible scratch procedure, not a permanent test harness
+or an installed configuration committed to main.
+
+** Notes
+
+*** Investigation Plan
+
+Use an ad-hoc disposable QEMU/KVM guest and a real RDP client such as FreeRDP
+under Xvfb. Obtain client/display tools through an explicit temporary Nix
+environment, without installing host packages or adding provisioning code.
+Start from the repo's minimal user, disk, and SSH assumptions.
+
+Determine the exact Xorg/xorgxrdp packages and i3 startup command, D-Bus/runtime
+environment requirements, and a terminal/launcher/status-bar set. Document
+how an explicit i3 config avoids first-run setup prompts. Do not require a
+local console login for the remote session.
+
+Use the documented normal bootstrap user; keep root locked. Carry RDP over
+SSH to the guest's port 3389, leaving the guest's RDP firewall port closed.
+RDP may create its own X session; console-session mirroring is not required.
+
+No GPU performance, audio, clipboard, desktop-suite, or application toolchain
+work. A scratch prototype does not replace the later shipped-ISO smoke.
+
+*** Required Evidence
+
+- Record the explicit Nixpkgs source and resolved revision, minimal config
+  fragment, client/tool versions, commands, and required session environment.
+- Authenticate with a real RDP client, capture its rendered i3/terminal
+  pixels, and deliver input through the client that produces a verifiable
+  result in the guest. Authentication-only and guest-only screenshots do
+  not satisfy this check.
+- Disconnect/reconnect to the same user and verify the original terminal
+  process/session survives. Explain any session-selection settings needed.
+- Record how the eventual config can remain independent of VM-provider
+  configuration and how SSH access and root locking are retained.
+- State remaining limitations and any decision needing operator input;
+  close only when findings give the implementation child a concrete path.
+- Shut down the disposable guest/client/display processes and record
+  artifact locations and cleanup. Preserve concise findings in this ticket.
+
+** Findings
+
+Not started. No configuration or RDP session has been validated yet.
+
+** References
+
+Likely references: =examples/minimal/configuration.nix= and the selected
+Nixpkgs =nixos/modules/services/networking/xrdp.nix= and
+=nixos/modules/services/x11/window-managers/i3.nix= modules.
+
+The earlier host check found QEMU/KVM and Nix, but no FreeRDP or Xvfb on PATH.
+Recheck capabilities when starting; do not assume those tools are installed.
+Implementation handoff goes to Installable GUI example (nix-l2t3).
