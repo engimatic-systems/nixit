@@ -28,6 +28,8 @@ README.org               operator orientation
 AGENTS.md                local agent instructions
 bin/preflight            host readiness check
 bin/build-live-installer-iso
+flake.nix                optional development dependencies
+flake.lock               locked Nixpkgs source
 docs/                    operator documentation
 examples/                example installer config trees
 hosts/live-installer/    live ISO NixOS configuration
@@ -71,6 +73,33 @@ MIN_FREE_GIB=16 bin/preflight
 Preflight does not install Nix, create VMs, build an ISO, or mutate host package
 state. Nix may still resolve the selected Nixpkgs source using its ordinary
 store/cache behavior.
+
+* Smoke Development Shell
+
+The optional =rdp-smoke= development shell supplies dependencies for ad-hoc
+headless GUI validation on =x86_64-linux=. Nix must already be installed with
+the =nix-command= and =flakes= features enabled.
+
+#+begin_src sh
+nix develop .#rdp-smoke
+printf 'NIXPKGS_PATH=%s\n' "$NIXPKGS_PATH"
+bin/preflight
+#+end_src
+
+The shell provides QEMU/=qemu-img=, the FreeRDP X11 client (=xfreerdp=),
+=Xvfb=/=xvfb-run=, =xdotool=, ImageMagick (=magick=), OpenSSH, coreutils,
+and util-linux. It starts no services or VMs. Host KVM access remains an
+operator prerequisite for accelerated VM tests.
+
+=NIXPKGS_PATH= points to the flake's locked source, so the existing build and
+preflight commands use the same Nixpkgs as the smoke tools while inside this
+shell. The initial pin is the NixOS 26.05 revision used by the earlier minimal
+ISO smoke: =5dfba6236110080a54247d6460bc2ff5dda939cc=. Updating it requires
+changing the input revision and regenerating =flake.lock=.
+
+VM orchestration and smoke artifacts remain outside tracked implementation
+files. The shell does not replace the existing installer build interface or
+install development tools into the guest image.
 
 * Build
 
