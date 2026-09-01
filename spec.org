@@ -218,7 +218,9 @@ Rules:
 - The helper must wait for partition devices before formatting/mounting.
 - If copied config includes =hardware-configuration.nix=, preserve it.
 - Otherwise run =nixos-generate-config --root /mnt=.
-- Run =nixos-install=.
+- Run =nixos-install --root /mnt --no-root-password=.
+- Installer configs must explicitly define their desired login and root-account
+  policy.
 - Leave the installed system bootable without the ISO.
 
 Missing =DISK= example:

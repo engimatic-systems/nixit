@@ -157,6 +157,10 @@ With the repo default =minimal= config, the installed login is:
 |-------+----------|
 | nixos | nixos    |
 
+Installer configs must explicitly define the desired installed login and
+root-account policy. The helper passes =--no-root-password= to
+=nixos-install= and never owns password setup itself.
+
 Record whether cold smoke completed. If it did not, record the blocking gap.
 
 * Optional Provider Example: QEMU/KVM
