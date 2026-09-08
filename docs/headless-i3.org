@@ -8,7 +8,9 @@ and authenticated loopback x11vnc at boot, before an SSH login or viewer.
 The viewer attaches to this existing desktop; disconnecting it preserves the
 desktop and its applications.
 
-=configuration.nix= selects packages, the user and systemd wiring.
+=configuration.nix= selects host identity, access and account settings.
+=graphical.nix= contains the local graphical packages and systemd wiring;
+=i3.config= retains native i3 syntax with executable paths supplied by Nix.
 =gui-vm-session.sh= owns graphical startup, readiness and cleanup.
 =gui-shell-attach.sh= attaches the user's Bash login shells to the current
 session. Neither configuration nor sidecar installs or supervises Codex, mise,
@@ -57,7 +59,7 @@ DISK=/dev/vda \
   install-nixos-vm
 #+end_src
 
-The installer copies the entire directory, including both sidecars, to
+The installer copies the entire directory, including the graphical module and all sidecars, to
 =/etc/nixos= and generates missing hardware configuration. Boot the installed
 disk without the ISO. Keep the files together for subsequent rebuilds;
 copying =configuration.nix= alone is insufficient.

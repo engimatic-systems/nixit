@@ -36,8 +36,10 @@ assert !(c.systemd.user.services ? codex-app-server);
         nativeBuildInputs = [ evaluated.pkgs.bash ];
       }
       ''
-        bash -n ${c.systemd.user.services.gui-session.serviceConfig.ExecStart}
-        touch "$out"
+            bash -n ${c.systemd.user.services.gui-session.serviceConfig.ExecStart}
+        i3_config=$(${evaluated.pkgs.gnused}/bin/sed -n 's/^export GUI_I3_CONFIG=//p' ${c.systemd.user.services.gui-session.serviceConfig.ExecStart})
+        ${evaluated.pkgs.i3}/bin/i3 -C -c "$i3_config"
+            touch "$out"
       '';
   loginProfile = c.environment.etc.profile.source;
 }
