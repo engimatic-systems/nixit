@@ -28,18 +28,17 @@ assert c.systemd.user.services.gui-session.serviceConfig.Restart == "always";
 assert builtins.elem "default.target" c.systemd.user.services.gui-session.wantedBy;
 assert !builtins.any (name: builtins.match ".*(codex|mise).*" name != null) names;
 assert !(c.systemd.user.services ? codex-app-server);
+assert c.systemd.user.services.gui-i3.bindsTo == [ "gui-session.service" ];
+assert c.systemd.user.services.gui-vnc.bindsTo == [ "gui-session.service" ];
+assert c.systemd.user.services.gui-i3.serviceConfig.Restart == "always";
+assert c.systemd.user.services.gui-vnc.serviceConfig.Restart == "always";
+
 {
   system = c.system.build.toplevel;
-  sessionCheck =
-    evaluated.pkgs.runCommand "headless-i3-session-check"
-      {
-        nativeBuildInputs = [ evaluated.pkgs.bash ];
-      }
-      ''
-            bash -n ${c.systemd.user.services.gui-session.serviceConfig.ExecStart}
-        i3_config=$(${evaluated.pkgs.gnused}/bin/sed -n 's/^export GUI_I3_CONFIG=//p' ${c.systemd.user.services.gui-session.serviceConfig.ExecStart})
-        ${evaluated.pkgs.i3}/bin/i3 -C -c "$i3_config"
-            touch "$out"
-      '';
+  sessionCheck = evaluated.pkgs.runCommand "gui-artifact-check" { } ''
+    ${evaluated.pkgs.bash}/bin/bash -n ${builtins.head (evaluated.pkgs.lib.splitString " " c.systemd.user.services.gui-session.serviceConfig.ExecStartPre)}
+    ${evaluated.pkgs.i3}/bin/i3 -C -c ${builtins.elemAt (evaluated.pkgs.lib.splitString " " c.systemd.user.services.gui-i3.serviceConfig.ExecStart) 2}
+    touch "$out"
+  '';
   loginProfile = c.environment.etc.profile.source;
 }

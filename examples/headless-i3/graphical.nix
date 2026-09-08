@@ -20,9 +20,9 @@ let
       dbus
       gnugrep
       i3
-      iproute2
       openssl
       util-linux
+      systemd
       x11vnc
       xorg.xauth
       xorg.xdpyinfo
@@ -35,27 +35,91 @@ let
     ''
     + builtins.readFile ./gui-vm-session.sh;
   };
+  sessionEnvironment = {
+    DISPLAY = ":0";
+    XAUTHORITY = "${runtimeDir}/gui-Xauthority";
+    XDG_RUNTIME_DIR = runtimeDir;
+    DBUS_SESSION_BUS_ADDRESS = "unix:path=${runtimeDir}/bus";
+  };
   shellAttach = pkgs.replaceVars ./gui-shell-attach.sh {
     inherit runtimeDir;
     guiUid = toString guiUid;
     timeout = "${pkgs.coreutils}/bin/timeout";
     stat = "${pkgs.coreutils}/bin/stat";
+    i3msg = "${pkgs.i3}/bin/i3-msg";
+    dbusSend = "${pkgs.dbus}/bin/dbus-send";
     xdpyinfo = "${pkgs.xorg.xdpyinfo}/bin/xdpyinfo";
   };
 in
 {
   services.dbus.enable = true;
+  # The display owns session lifetime. Its Wants starts dependents again after
+  # recovery; their BindsTo/After stops them when X is lost. Neither dependent
+  # can propagate its own failure back to X or to another dependent.
   systemd.user.services.gui-session = {
-    description = "Unattended authenticated Xvfb and i3 session";
+    description = "Authenticated unattended X display";
     wantedBy = [ "default.target" ];
-    wants = [ "dbus.socket" ];
+    wants = [
+      "dbus.socket"
+      "gui-i3.service"
+      "gui-vnc.service"
+    ];
     after = [ "dbus.socket" ];
-    unitConfig.ConditionUser = guiUser;
+    unitConfig = {
+      ConditionUser = guiUser;
+      StartLimitIntervalSec = 0;
+    };
+    environment = sessionEnvironment;
     serviceConfig = {
-      Type = "simple";
-      ExecStart = "${session}/bin/gui-vm-session";
+      Type = "exec";
+      ExecStartPre = "${session}/bin/gui-vm-session prepare-x";
+      ExecStart = "${pkgs.xorg.xorgserver}/bin/Xvfb :0 -screen 0 1280x800x24 -nolisten tcp -auth ${runtimeDir}/gui-Xauthority";
+      ExecStartPost = "${session}/bin/gui-vm-session wait-x";
+      ExecStopPost = "${session}/bin/gui-vm-session cleanup-x";
       Restart = "always";
       RestartSec = "1s";
+      TimeoutStartSec = "15s";
+      UMask = "0077";
+    };
+  };
+  systemd.user.services.gui-i3 = {
+    description = "Window manager and desktop attachment readiness";
+    bindsTo = [ "gui-session.service" ];
+    after = [ "gui-session.service" ];
+    partOf = [ "gui-session.service" ];
+    unitConfig = {
+      ConditionUser = guiUser;
+      StartLimitIntervalSec = 0;
+    };
+    environment = sessionEnvironment;
+    serviceConfig = {
+      Type = "exec";
+      ExecStart = "${pkgs.i3}/bin/i3 -c ${i3Config}";
+      ExecStartPost = "${session}/bin/gui-vm-session publish";
+      ExecStopPost = "${session}/bin/gui-vm-session cleanup-i3";
+      Restart = "always";
+      RestartSec = "1s";
+      TimeoutStartSec = "15s";
+      UMask = "0077";
+    };
+  };
+  systemd.user.services.gui-vnc = {
+    description = "Loopback VNC attachment to the current X display";
+    bindsTo = [ "gui-session.service" ];
+    after = [ "gui-session.service" ];
+    partOf = [ "gui-session.service" ];
+    unitConfig = {
+      ConditionUser = guiUser;
+      StartLimitIntervalSec = 0;
+    };
+    environment = sessionEnvironment;
+    serviceConfig = {
+      Type = "exec";
+      ExecStartPre = "${session}/bin/gui-vm-session prepare-vnc";
+      ExecStart = "${pkgs.x11vnc}/bin/x11vnc -display :0 -auth ${runtimeDir}/gui-Xauthority -rfbauth ${runtimeDir}/x11vnc.pass -rfbport 5900 -localhost -forever -shared -noxdamage";
+      Restart = "always";
+      RestartSec = "1s";
+      UMask = "0077";
     };
   };
   programs.bash.loginShellInit = ''

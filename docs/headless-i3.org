@@ -11,7 +11,9 @@ desktop and its applications.
 =configuration.nix= selects host identity, access and account settings.
 =graphical.nix= contains the local graphical packages and systemd wiring;
 =i3.config= retains native i3 syntax with executable paths supplied by Nix.
-=gui-vm-session.sh= owns graphical startup, readiness and cleanup.
+=gui-vm-session.sh= provides bounded preparation, readiness and cleanup
+operations. systemd directly supervises Xvfb (=gui-session=), i3 (=gui-i3=)
+and x11vnc (=gui-vnc=) as separate user services.
 =gui-shell-attach.sh= attaches the user's Bash login shells to the current
 session. Neither configuration nor sidecar installs or supervises Codex, mise,
 or another agent toolchain. An independently launched server may use the
@@ -91,9 +93,13 @@ it; use =bash -lc= explicitly in such a caller. New login commands read current
 session attachment state after recovery. Inspect the effective command
 environment rather than assuming a long-lived server inherited it at startup.
 
-Logs and current process IDs live in the graphical user's private runtime
-directory. The ready record is removed on shutdown and recreated only after
-X, i3, D-Bus and VNC checks pass. X has no TCP listener; VNC binds only guest
+Logs belong to the journal: use =journalctl --user -u gui-session -u gui-i3
+-u gui-vnc= to see each service invocation, exit and restart. The private
+=gui-session.env= is atomically replaced with one complete record after the
+current X display, i3 IPC socket (including its service PID), and D-Bus respond.
+=gui-session.ready= points to that same record, including readiness time and
+X/i3 PIDs. Records disappear when X or i3 stops. VNC does not gate desktop
+readiness or shell attachment. X has no TCP listener; VNC binds only guest
 loopback. The firewall opens SSH, not VNC.
 
 * Viewer
@@ -124,14 +130,18 @@ but the tunnel must terminate at the VM to reach its loopback listener.
 Do not expose this password-only VNC transport publicly. Stop the viewer and
 tunnel and delete the private copied password after use.
 
-A viewer disconnect does not restart the session. Display loss or a complete
+A viewer disconnect does not restart the session. An i3 or VNC restart retains the runtime password. Display loss or a complete
 session restart creates a fresh desktop, Xauthority and VNC password. Refetch
 the password and reconnect after such a restart; old copied files fail VNC
 authentication. An unrelated SSH-launched process exiting does not rotate it.
 
 * Recovery and cleanup
 
-A failed graphical child triggers session cleanup and restart. Work interrupted
+VNC failures restart only VNC; =systemctl --user restart gui-vnc= also leaves
+X, i3 and applications intact. i3 failures restart only the window manager;
+=systemctl --user restart gui-i3= preserves X and applications. X failure
+stops its dependents, invalidates attachment state and recovers a fresh
+display with new dependent processes. Work interrupted
 by display loss can fail; nothing automatically repeats an agent task. To
 intentionally reset the desktop (this closes its applications):
 
@@ -154,6 +164,12 @@ Run the example contract checks with the chosen source:
 NIXPKGS_PATH=/path/to/nixpkgs tests/headless-i3.sh
 tests/install-nixos-vm.sh
 #+end_src
+
+On an explicitly named =gui-cleanup-*= disposable guest, run
+=GUI_TEST_DISPOSABLE=1 bash tests/gui-shell-contract.sh= as the graphical user
+to test the actual installed login profile against malformed/private records,
+caller preservation and default Xauthority. It temporarily replaces session
+records and restores them on exit; never run it on a live consumer.
 
 These evaluate the repository example and an isolated copied tree, and build
 the session with Nix's Bash/ShellCheck validation. They do not substitute for

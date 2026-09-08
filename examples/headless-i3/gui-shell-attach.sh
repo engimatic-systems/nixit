@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Sourced by the configured graphical user's Bash login shells.
 _gui_shell_attach() {
   # A working caller-selected display needs no discovery; XAUTHORITY may
@@ -20,7 +21,7 @@ _gui_shell_attach() {
   # separate session-owned CODEX_APP_SERVER_SOCKET from this record.
   while IFS='=' read -r name value; do
     case "$name" in
-      DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS)
+      DISPLAY|XAUTHORITY|XDG_RUNTIME_DIR|DBUS_SESSION_BUS_ADDRESS|I3SOCK)
         if [[ -v session_values[$name] ]] || [ -z "$value" ]; then
           printf 'GUI attachment unavailable: ambiguous or incomplete session record.\n' >&2
           return 0
@@ -29,12 +30,21 @@ _gui_shell_attach() {
         ;;
     esac
   done < "$record"
-  for name in DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS; do
+  for name in DISPLAY XAUTHORITY XDG_RUNTIME_DIR DBUS_SESSION_BUS_ADDRESS I3SOCK; do
     if [[ ! -v session_values[$name] ]]; then
       printf 'GUI attachment unavailable: incomplete session record.\n' >&2
       return 0
     fi
   done
+
+  if [ "${session_values[DISPLAY]}" != :0 ] ||
+    [ "${session_values[XAUTHORITY]}" != @runtimeDir@/gui-Xauthority ] ||
+    [ "${session_values[XDG_RUNTIME_DIR]}" != @runtimeDir@ ] ||
+    [ "${session_values[DBUS_SESSION_BUS_ADDRESS]}" != unix:path=@runtimeDir@/bus ] ||
+    [[ ! "${session_values[I3SOCK]}" =~ ^@runtimeDir@/i3/ipc-socket\.[0-9]+$ ]]; then
+    printf 'GUI attachment unavailable: invalid session record.\n' >&2
+    return 0
+  fi
 
   # Never borrow a different display's authority for a caller-selected
   # display that failed its connectivity check.
@@ -47,7 +57,11 @@ _gui_shell_attach() {
   local next_runtime="${XDG_RUNTIME_DIR-${session_values[XDG_RUNTIME_DIR]}}"
   local next_bus="${DBUS_SESSION_BUS_ADDRESS-${session_values[DBUS_SESSION_BUS_ADDRESS]}}"
   if DISPLAY="$next_display" XAUTHORITY="$next_authority" \
-    @timeout@ 2 @xdpyinfo@ >/dev/null 2>&1; then
+    @timeout@ 2 @xdpyinfo@ >/dev/null 2>&1 &&
+    @timeout@ 2 @i3msg@ -s "${session_values[I3SOCK]}" -t get_version >/dev/null 2>&1 &&
+    DBUS_SESSION_BUS_ADDRESS="$next_bus" @timeout@ 2 @dbusSend@ --session \
+      --print-reply --type=method_call --dest=org.freedesktop.DBus \
+      /org/freedesktop/DBus org.freedesktop.DBus.ListNames >/dev/null 2>&1; then
     export DISPLAY="$next_display" XAUTHORITY="$next_authority"
     export XDG_RUNTIME_DIR="$next_runtime" DBUS_SESSION_BUS_ADDRESS="$next_bus"
   else
