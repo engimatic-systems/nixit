@@ -164,3 +164,17 @@ policy. The helper does not prompt for, generate, or manage root passwords.
 - Managing secrets.
 - Provisioning SSH keys.
 - Installing Codex, mise, or other agent toolchains.
+
+* Unattended graphical example
+
+=examples/headless-i3/= provides a desktop that starts before a viewer connects:
+Xvfb, i3, D-Bus and authenticated loopback VNC, with Bash login-shell attachment.
+The session implementation lives in shell sidecars referenced by
+=configuration.nix=. No agent toolchain or app-server lifecycle is included.
+
+Copy the whole tree, supply the VM owner's public SSH key, review its user and
+boot settings, and select it through =CONFIG_DIR=. The installed default user
+is =nixos= with key-only SSH and passwordless sudo; the example grants no SSH
+access until you provide a key. VM creation and credentials remain explicit
+operator inputs. See [[file:docs/headless-i3.org][the headless i3 guide]] for embedding,
+installation, SSH-tunneled TigerVNC, recovery, and validation.
