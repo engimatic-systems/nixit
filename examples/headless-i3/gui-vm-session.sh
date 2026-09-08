@@ -12,7 +12,7 @@ export DBUS_SESSION_BUS_ADDRESS="unix:path=$runtime_dir/bus"
 
 case "${1:?operation required}" in
   prepare-x)
-    rm -f -- "$record" "$ready" "$authority" "$runtime_dir/x11vnc.pass"
+    rm -f -- "$record" "$ready" "$authority"
     # Feed the cookie through stdin rather than exposing it in process argv.
     printf 'add %s . %s\n' "$DISPLAY" "$(mcookie)" | xauth -q -f "$authority"
     chmod 0600 "$authority"
@@ -57,16 +57,7 @@ case "${1:?operation required}" in
     rm -f -- "$record" "$ready"
     ;;
   cleanup-x)
-    rm -f -- "$record" "$ready" "$authority" "$runtime_dir/x11vnc.pass"
-    ;;
-  prepare-vnc)
-    if [ ! -f "$runtime_dir/x11vnc.pass" ]; then
-      password=$(openssl rand -hex 4)
-      printf '%s\n%s\ny\n' "$password" "$password" \
-        | x11vnc -storepasswd "$runtime_dir/x11vnc.pass" >/dev/null 2>&1
-      unset password
-      chmod 0600 "$runtime_dir/x11vnc.pass"
-    fi
+    rm -f -- "$record" "$ready" "$authority"
     ;;
   *) echo "Unknown graphical session operation" >&2; exit 2 ;;
 esac

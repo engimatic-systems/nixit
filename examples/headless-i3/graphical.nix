@@ -8,6 +8,7 @@
 let
   guiUid = config.users.users.${guiUser}.uid;
   runtimeDir = "/run/user/${toString guiUid}";
+  vncStateDir = "${config.users.users.${guiUser}.home}/.local/state/gui-vnc";
   i3Config = pkgs.replaceVars ./i3.config {
     xterm = "${pkgs.xterm}/bin/xterm";
     dmenu = "${pkgs.dmenu}/bin/dmenu_run";
@@ -34,6 +35,22 @@ let
       export GUI_I3_CONFIG=${i3Config}
     ''
     + builtins.readFile ./gui-vm-session.sh;
+  };
+  vncCredentials = pkgs.writeShellApplication {
+    name = "gui-vnc-credentials";
+    runtimeInputs = with pkgs; [
+      coreutils
+      openssl
+      util-linux
+      x11vnc
+      systemd
+    ];
+    text = ''
+      export GUI_UID=${toString guiUid}
+      export GUI_RUNTIME_DIR=${lib.escapeShellArg runtimeDir}
+      export GUI_VNC_STATE_DIR=${lib.escapeShellArg vncStateDir}
+    ''
+    + builtins.readFile ./gui-vnc-credentials.sh;
   };
   sessionEnvironment = {
     DISPLAY = ":0";
@@ -115,8 +132,8 @@ in
     environment = sessionEnvironment;
     serviceConfig = {
       Type = "exec";
-      ExecStartPre = "${session}/bin/gui-vm-session prepare-vnc";
-      ExecStart = "${pkgs.x11vnc}/bin/x11vnc -display :0 -auth ${runtimeDir}/gui-Xauthority -rfbauth ${runtimeDir}/x11vnc.pass -rfbport 5900 -localhost -forever -shared -noxdamage";
+      ExecStartPre = "${vncCredentials}/bin/gui-vnc-credentials ensure";
+      ExecStart = "${pkgs.x11vnc}/bin/x11vnc -display :0 -auth ${runtimeDir}/gui-Xauthority -rfbauth ${vncStateDir}/passwd -rfbport 5900 -localhost -forever -shared -noxdamage";
       Restart = "always";
       RestartSec = "1s";
       UMask = "0077";
@@ -129,6 +146,7 @@ in
   '';
   fonts.packages = [ pkgs.dejavu_fonts ];
   environment.systemPackages = with pkgs; [
+    vncCredentials
     dbus
     dmenu
     i3

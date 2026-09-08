@@ -38,6 +38,7 @@ assert c.systemd.user.services.gui-vnc.serviceConfig.Restart == "always";
   sessionCheck = evaluated.pkgs.runCommand "gui-artifact-check" { } ''
     ${evaluated.pkgs.bash}/bin/bash -n ${builtins.head (evaluated.pkgs.lib.splitString " " c.systemd.user.services.gui-session.serviceConfig.ExecStartPre)}
     ${evaluated.pkgs.i3}/bin/i3 -C -c ${builtins.elemAt (evaluated.pkgs.lib.splitString " " c.systemd.user.services.gui-i3.serviceConfig.ExecStart) 2}
+    ${evaluated.pkgs.bash}/bin/bash -n ${builtins.head (evaluated.pkgs.lib.splitString " " c.systemd.user.services.gui-vnc.serviceConfig.ExecStartPre)}
     touch "$out"
   '';
   loginProfile = c.environment.etc.profile.source;

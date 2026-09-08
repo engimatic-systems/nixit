@@ -7,7 +7,7 @@ trap 'chmod -R u+w "$test_root"; rm -rf -- "$test_root"' EXIT
 cp -a "$repo/examples/headless-i3" "$test_root/example"
 
 for example in "$repo/examples/headless-i3" "$test_root/example"; do
-  for sidecar in gui-vm-session.sh gui-shell-attach.sh; do
+  for sidecar in gui-vm-session.sh gui-shell-attach.sh gui-vnc-credentials.sh; do
     bash -n "$example/$sidecar"
   done
   NIX_PATH='' nix-instantiate "$repo/tests/headless-i3-contract.nix" \
