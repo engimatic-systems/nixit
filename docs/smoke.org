@@ -204,3 +204,10 @@ qemu-system-x86_64 \
 
 Adjust accelerator, CPU, memory, disk bus, port forwarding, and firmware for
 local host constraints.
+
+* Headless i3 example
+
+See [[file:headless-i3.org][headless i3 validation]] for its configuration and live
+acceptance contract. The example must also evaluate after its whole directory
+is copied outside the repository; both shell sidecars must survive installation.
+Use separate disposable proof resources and record live evidence in sys.

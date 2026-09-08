@@ -1,0 +1,214 @@
+#+TITLE: Unattended i3/VNC VM example
+
+* Contract
+
+=examples/headless-i3/= is a self-contained NixOS configuration tree for a
+small headless graphical VM. A lingering ordinary user starts Xvfb, i3, D-Bus,
+and authenticated loopback x11vnc at boot, before an SSH login or viewer.
+The viewer attaches to this existing desktop; disconnecting it preserves the
+desktop and its applications.
+
+=configuration.nix= selects host identity, access and account settings.
+=graphical.nix= contains the local graphical packages and systemd wiring;
+=i3.config= retains native i3 syntax with executable paths supplied by Nix.
+=gui-vm-session.sh= provides bounded preparation, readiness and cleanup
+operations. systemd directly supervises Xvfb (=gui-session=), i3 (=gui-i3=)
+and x11vnc (=gui-vnc=) as separate user services.
+=gui-shell-attach.sh= attaches the user's Bash login shells to the current
+session. Neither configuration nor sidecar installs or supervises Codex, mise,
+or another agent toolchain. An independently launched server may use the
+shell attachment, but its lifetime does not control the desktop.
+
+This is a software-rendered X11 development baseline. GPU acceleration, audio,
+clipboard integration, Wayland and application survival across a display
+restart or VM reboot are not promised. The example does not change the
+existing minimal configuration or the separate minimal-i3/RDP example work.
+
+* Consumer inputs and installation
+
+Start with a private working copy of the complete directory:
+
+#+begin_src sh
+mkdir -p .ephemera/configs
+cp -a examples/headless-i3 .ephemera/configs/
+$EDITOR .ephemera/configs/headless-i3/configuration.nix
+#+end_src
+
+Before building:
+- Put the VM owner's public SSH key in =openssh.authorizedKeys.keys=. The
+  checked-in list is empty; the unedited example intentionally grants no SSH
+  access. Never copy a private key into the configuration tree.
+- Review =guiUser= (default =nixos=), its UID (default 1000), hostname and
+  =/dev/vda= GRUB assumption. The private runtime directory follows that UID.
+- The example locks root, disables password SSH and gives the VM owner
+  passwordless sudo. Treat that public-key selection as administrator access.
+- Choose an explicit Nixpkgs source. Validation records the exact revision;
+  nixit does not silently choose or provision a development toolchain.
+
+Build with the ordinary full-tree embedding path:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs CONFIG_DIR="$PWD/.ephemera/configs" \
+  bin/build-live-installer-iso .ephemera/iso
+#+end_src
+
+Boot the ISO using operator-owned VM tooling with a new disposable target
+disk. In the live installer, run (this destroys the selected disk):
+
+#+begin_src sh
+DISK=/dev/vda \
+  CONFIGURATION_NIX=/etc/nixos-installer/configs/headless-i3/configuration.nix \
+  install-nixos-vm
+#+end_src
+
+The installer copies the entire directory, including the graphical module and all sidecars, to
+=/etc/nixos= and generates missing hardware configuration. Boot the installed
+disk without the ISO. Keep the files together for subsequent rebuilds;
+copying =configuration.nix= alone is insufficient.
+
+VM creation, console access, DHCP/routing, host policy and teardown belong to
+the operator, not nixit. The live ISO's documented temporary installer login
+policy is separate from the installed system's key-only login policy.
+
+* Shell attachment and diagnostics
+
+Use the configured user and reachable VM address. For the default user:
+
+#+begin_src sh
+ssh nixos@VM 'bash -lc "i3-msg -t get_version"'
+ssh nixos@VM 'cat /run/user/1000/gui-session.ready'
+ssh nixos@VM 'systemctl --user status gui-session.service --no-pager'
+#+end_src
+
+The private =gui-session.env= record contains DISPLAY, XAUTHORITY,
+XDG_RUNTIME_DIR and DBUS_SESSION_BUS_ADDRESS. The login hook parses only those
+fields, preserves a working caller display (including working default X
+authority), and checks X connectivity before filling missing values. It never
+selects an agent-server socket. Invalid explicit overrides are preserved and
+reported; a warning goes to stderr without breaking ordinary shell commands.
+
+Commands must run through Bash login startup to get automatic attachment.
+An ordinary SSH remote command or a tool using =bash --noprofile= may bypass
+it; use =bash -lc= explicitly in such a caller. New login commands read current
+session attachment state after recovery. Inspect the effective command
+environment rather than assuming a long-lived server inherited it at startup.
+
+Logs belong to the journal: use =journalctl --user -u gui-session -u gui-i3
+-u gui-vnc= to see each service invocation, exit and restart. The private
+=gui-session.env= is atomically replaced with one complete record after the
+current X display, i3 IPC socket (including its service PID), and D-Bus respond.
+=gui-session.ready= points to that same record, including readiness time and
+X/i3 PIDs. Records disappear when X or i3 stops. VNC does not gate desktop
+readiness or shell attachment. X has no TCP listener; VNC binds only guest
+loopback. The firewall opens SSH, not VNC.
+
+* Viewer
+
+VNC authentication uses a guest-generated persistent password in
+=~/.local/state/gui-vnc/passwd= (directory 0700, binary credential 0600). It
+survives X/i3/VNC restarts and VM reboots until explicit rotation. Retrieve its
+binary password file over your existing authenticated SSH connection:
+
+#+begin_src sh
+vnc_pass=$(mktemp)
+ssh nixos@VM 'cat ~/.local/state/gui-vnc/passwd' > "$vnc_pass"
+#+end_src
+
+Keep a separate tunnel running in another terminal:
+
+#+begin_src sh
+ssh -N -T -o ExitOnForwardFailure=yes \
+  -L 127.0.0.1:15900:127.0.0.1:5900 nixos@VM
+#+end_src
+
+Attach with TigerVNC:
+
+#+begin_src sh
+vncviewer -Shared -RemoteResize=0 -passwd "$vnc_pass" 127.0.0.1::15900
+#+end_src
+
+SSH supplies transport encryption. A jump host may be used with =ProxyJump=,
+but the tunnel must terminate at the VM to reach its loopback listener.
+Do not expose this password-only VNC transport publicly. Stop the viewer and
+tunnel and delete the private copied password after use.
+
+A viewer disconnect does not restart the session. Xauthority follows the X
+session lifetime; the VNC credential persists independently. To deliberately
+rotate it as the graphical user:
+
+#+begin_src sh
+ssh nixos@VM 'gui-vnc-credentials rotate'
+#+end_src
+
+The command generates privately, stops only VNC, atomically replaces its
+credential and starts VNC with the new credential. X, i3 and applications
+remain alive. Existing viewers disconnect; refetch the private file and
+reconnect. Old copies no longer authenticate. No password appears in Nix,
+command arguments or journal output. If VNC startup fails, the new credential
+remains authoritative; inspect =gui-vnc= and restart it before reconnecting.
+
+When upgrading from runtime-only credentials, build the candidate system,
+then run =CANDIDATE_SYSTEM/sw/bin/gui-vnc-credentials ensure= as the graphical
+user *before* activating it. This moves a valid private
+=/run/user/1000/x11vnc.pass= into persistent state without changing its bytes.
+The old generation deletes runtime credentials when stopped, so without this
+staging (or after a reboot has already lost runtime state), the new generation
+creates a fresh credential and viewers must refetch it. Never copy credentials
+into the configuration directory or Nix store. Existing persistent state wins
+on every ordinary startup; unsafe permissions cause a failure rather than
+silent replacement.
+
+Persistent state is not a NixOS generation artifact. Rolling back to an older
+runtime-only generation leaves it on disk but that generation uses a different
+runtime password; refetch the credential appropriate to that generation. A
+later return to this generation reuses the persistent credential. Retain it
+unless explicitly retiring the VM/access or rotating it; remove persistent
+state only as an intentional credential retirement with VNC stopped. Delete
+all copied viewer credentials after use and remove guest credential state when
+disposing of a proof disk. Backups containing home state also contain this
+credential and must remain private.
+
+* Recovery and cleanup
+
+VNC failures restart only VNC; =systemctl --user restart gui-vnc= also leaves
+X, i3 and applications intact. i3 failures restart only the window manager;
+=systemctl --user restart gui-i3= preserves X and applications. X failure
+stops its dependents, invalidates attachment state and recovers a fresh
+display with new dependent processes. Work interrupted
+by display loss can fail; nothing automatically repeats an agent task. To
+intentionally reset the desktop (this closes its applications):
+
+#+begin_src sh
+ssh nixos@VM 'systemctl --user restart gui-session.service'
+#+end_src
+
+For configuration rollback, retain the previous NixOS generation and use the
+normal NixOS rebuild/rollback procedure, or boot its prior generation from the
+boot menu. Keep access through an independent SSH connection or VM console.
+Full VM/disk teardown is performed with the operator's own VM tooling after
+recording the intended disposition. Do not include runtime credentials, disks,
+ISOs, screenshots or logs in Git.
+
+* Validation
+
+Run the example contract checks with the chosen source:
+
+#+begin_src sh
+NIXPKGS_PATH=/path/to/nixpkgs tests/headless-i3.sh
+tests/install-nixos-vm.sh
+#+end_src
+
+On an explicitly named =gui-cleanup-*= disposable guest, run
+=GUI_TEST_DISPOSABLE=1 bash tests/gui-shell-contract.sh= as the graphical user
+to test the actual installed login profile against malformed/private records,
+caller preservation and default Xauthority.
+=GUI_TEST_DISPOSABLE=1 bash tests/gui-vnc-contract.sh= exercises the actual
+installed credential helper for generation/reuse and private-state failures. It temporarily replaces session
+records and restores them on exit; never run it on a live consumer.
+
+These evaluate the repository example and an isolated copied tree, and build
+the session with Nix's Bash/ShellCheck validation. They do not substitute for
+a fresh installed-VM proof: record unattended cold boot, GUI command capture
+and input, real viewer reconnect with retained identities, unrelated-process
+independence, and display recovery followed by a fresh command and viewer.
+Live proof orchestration and evidence belong in the consuming sys ticket.
